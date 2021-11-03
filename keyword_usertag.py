@@ -5,7 +5,7 @@ from media.Media import Media
 from basic.date import get_date_shift, datetime_to_str, get_yesterday, to_datetime, get_today
 from basic.decorator import timing
 from jieba_based.utility import Composer_jieba
-from keyword_usertag_report import keyword_usertag_report
+from keyword_usertag_report import keyword_usertag_report, delete_expired_rows
 import jieba.analyse
 import numpy as np
 import time
@@ -56,15 +56,16 @@ def fetch_browse_record_yesterday_join(web_id, is_df=False, is_UTC0=False):
     else:
         return data
 
-def delete_expired_rows(web_id, table='usertag', is_UTC0=False):
-    date_now = datetime_to_str(get_today(is_UTC0=is_UTC0))
-    query = f"DELETE FROM {table} where expired_date<'{date_now}' and web_id='{web_id}'"
-    print(query)
-    MySqlHelper('missioner').ExecuteUpdate(query)
+# def delete_expired_rows(web_id, table='usertag', is_UTC0=False, jump2gcp=True):
+#     date_now = datetime_to_str(get_today(is_UTC0=is_UTC0))
+#     query = f"DELETE FROM {table} where expired_date<'{date_now}' and web_id='{web_id}'"
+#     print(query)
+#     MySqlHelper('missioner', is_ssh=jump2gcp).ExecuteUpdate(query)
 
 if __name__ == '__main__':
     ## set is in UTC+0 or UTC+8
     is_UTC0 = True
+    jump2gcp = True
     ## set up config (add word, user_dict.txt ...)
     jieba_base = Composer_jieba()
     all_hashtag = jieba_base.set_config()
@@ -122,12 +123,12 @@ if __name__ == '__main__':
         # MySqlHelper('missioner').ExecuteInsert('usertag', usertag_list_dict)
         query = "REPLACE INTO usertag (web_id, uuid, code, token, usertag, article_id, expired_date, is_cut) VALUES (:web_id, :uuid, :code, :token, :usertag, :article_id, :expired_date, :is_cut)"
         print(query)
-        MySqlHelper('missioner', is_ssh=False).ExecuteUpdate(query, usertag_list_dict)
+        MySqlHelper('missioner', is_ssh=jump2gcp).ExecuteUpdate(query, usertag_list_dict)
         ## delete expired data
-        delete_expired_rows(web_id, table='usertag', is_UTC0=is_UTC0)
+        delete_expired_rows(web_id, table='usertag', is_UTC0=is_UTC0, jump2gcp=jump2gcp)
 
         ### prepare keyword_usertag_report
-        df_freq_token = keyword_usertag_report(web_id, usertag_table='usertag', report_table='usertag_report')
+        df_freq_token = keyword_usertag_report(web_id, usertag_table='usertag', report_table='usertag_report', is_UTC0=is_UTC0, jump2gcp=jump2gcp)
     t_end_program = time.time()
     spent_time_program = t_end_program - t_start_outloop
     print(f'One round spent: {spent_time_program} s')
