@@ -2,7 +2,7 @@ import re
 from gensim.models import word2vec
 from gensim.corpora import WikiCorpus
 import jieba
-from ckiptagger import WS, POS, NER
+# from ckiptagger import WS, POS, NER
 from opencc import OpenCC
 import numpy as np
 from jieba_based.utility import Composer_jieba
@@ -62,27 +62,27 @@ class Composer(Composer_jieba):
         return keyword_list
 
 
-    def ckip_cut(self, path_read='../gitignore/wiki_text.txt', path_write='../gitignore/wiki_text_seg_ckip.txt'):
-        path_data = r'../gitignore/data'
-        ws = WS(path_data)
-        # pos = POS(path_data)
-        # ner = NER(path_data)
-        with open(path_write, 'w', encoding='utf-8') as new_f:
-            with open(path_read, 'r', encoding='utf-8') as f:
-                for times, data in enumerate(f, 1):
-                    data = self.remove_en(self.zwcn2tw(data))
-                    print(f'data num: {times}, data: {data}')
-                    # data_cut = ws([data], sentence_segmentation=True)[0]
-                    data_cut = ws([data])[0]
-                    self.data_cut_ckip = data_cut
-                    data_clean = []
-                    for word in data_cut:
-                        if word != '' and word != ' ':
-                            data_clean += [word]
-                    # data = [word for word in data if word != ' ']
-                    result = ' '.join(data_clean)
-                    print(f'data_cut num: {times}, data_cut: {result}')
-                    new_f.write(result)
+    # def ckip_cut(self, path_read='../gitignore/wiki_text.txt', path_write='../gitignore/wiki_text_seg_ckip.txt'):
+    #     path_data = r'../gitignore/data'
+    #     ws = WS(path_data)
+    #     # pos = POS(path_data)
+    #     # ner = NER(path_data)
+    #     with open(path_write, 'w', encoding='utf-8') as new_f:
+    #         with open(path_read, 'r', encoding='utf-8') as f:
+    #             for times, data in enumerate(f, 1):
+    #                 data = self.remove_en(self.zwcn2tw(data))
+    #                 print(f'data num: {times}, data: {data}')
+    #                 # data_cut = ws([data], sentence_segmentation=True)[0]
+    #                 data_cut = ws([data])[0]
+    #                 self.data_cut_ckip = data_cut
+    #                 data_clean = []
+    #                 for word in data_cut:
+    #                     if word != '' and word != ' ':
+    #                         data_clean += [word]
+    #                 # data = [word for word in data if word != ' ']
+    #                 result = ' '.join(data_clean)
+    #                 print(f'data_cut num: {times}, data_cut: {result}')
+    #                 new_f.write(result)
 
 
     def cut(self, path_read='../gitignore/wiki_text.txt', path_write='wiki_text_seg.txt', enable_parallel=None, user_config=True, in_sub_folder=False):

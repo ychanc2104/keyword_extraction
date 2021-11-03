@@ -66,9 +66,12 @@ def datetime_to_str(date, pattern='%Y-%m-%d'):
 def date2int(date, sep='-'):
     if type(date) == datetime.datetime:
         date_str = datetime_to_str(date)
+        date_int = int(''.join(date_str.split(sep)))
+    elif type(date) == int:
+        date_int = date
     else:
         date_str = date
-    date_int = int(''.join(date_str.split(sep)))
+        date_int = int(''.join(date_str.split(sep)))
     return date_int
 
 

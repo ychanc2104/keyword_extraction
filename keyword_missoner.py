@@ -47,7 +47,7 @@ def test_speed():
 @timing
 def build_keyword_article(date=None, is_UTC0=False, n=10000):
     if (date == None):
-        date_int = date2int(get_today())
+        date_int = date2int(get_today(is_UTC0=is_UTC0))
     else:
         date_int = date2int(date)
     ## set up config (add word, user_dict.txt ...)
@@ -62,7 +62,7 @@ def build_keyword_article(date=None, is_UTC0=False, n=10000):
     # n = 500
     for web_id in web_id_all:
         ## fetch user_based popular article
-        df_hot = media.fetch_hot_articles(web_id, n, date=date)
+        df_hot = media.fetch_hot_articles(web_id, n, date=date, is_UTC0=is_UTC0)
         if df_hot.size == 0:
             print('no valid data in dione.report_hour')
             continue
@@ -110,7 +110,7 @@ def build_keyword_article(date=None, is_UTC0=False, n=10000):
         ## select enough number of keywords
         pageviews_array = np.array(df_keyword['pageviews']).astype('int')
         mean_pageviews = np.mean(pageviews_array)
-        std_pageviews = np.std(pageviews_array, ddof=1)
+        # std_pageviews = np.std(pageviews_array, ddof=1)
         df_select = df_keyword.query(f"pageviews > {mean_pageviews}")
 
         ## save keyword statistics to db
@@ -126,23 +126,25 @@ def build_keyword_article(date=None, is_UTC0=False, n=10000):
     return df_select, df_map
 
 
-
+## analyze data yesterday, insert two tables, missoner_keyword and missoner_keyword_article
 if __name__ == '__main__':
+
     t_start = time.time()
     date = None
+    is_UTC0 = True
     # date = '2021-11-01'
-    hour_now = get_hour(is_UTC0=False)
+    hour_now = get_hour(is_UTC0=is_UTC0)
     if (hour_now == 3):
         ## routine
-        df_select, df_map = build_keyword_article(date=date, n=5000)
+        df_select, df_map = build_keyword_article(date=date, n=5000, is_UTC0=is_UTC0)
         print(f'routine to update every hour, hour: {hour_now}')
-        yesterday = get_yesterday(is_UTC0=False)
+        yesterday = get_yesterday(is_UTC0=is_UTC0)
         ## cal at 0,1,2 to confirm data is complete
-        df_select_y, df_map_y = build_keyword_article(date=yesterday, n=50000)
+        df_select_y, df_map_y = build_keyword_article(date=yesterday, n=50000, is_UTC0=is_UTC0)
         print(f"in 3:00 (UTC+8), update yesterday all browse record")
         # print(f"in time range between 0 and 2 (UTC+8), update yesterday all twice(at 0, 1 and 2 o'clock)")
     else:
-        df_select, df_map = build_keyword_article(date=date, n=5000)
+        df_select, df_map = build_keyword_article(date=date, n=5000, is_UTC0=is_UTC0)
         print(f'routine to update every hour, hour: {hour_now}')
     t_end = time.time()
     t_spent = t_end - t_start

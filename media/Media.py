@@ -31,11 +31,11 @@ class Media:
 
     ## fetch hot article from RDS dione.article_click_count and get details from dione.article_list
     @timing
-    def fetch_hot_articles(self, web_id, n=50, date=None): # default get today's popular articles
+    def fetch_hot_articles(self, web_id, n=50, date=None, is_UTC0=False): # default get today's popular articles
         # query = f"SELECT web_id, article_id, clickCountOfMonth, update_time FROM article_click_count WHERE web_id='{web_id}' AND clickCountOfMonth != 0 ORDER BY clickCountOfMonth DESC limit {n}"
         # query = f"SELECT subscriber_browse_record.web_id, subscriber_browse_record.uuid, subscriber_browse_record.article_id, article_list.title, article_list.content FROM subscriber_browse_record inner Join article_list on subscriber_browse_record.article_id=article_list.signature"
         if (date == None):
-            date_int = date2int(get_today())
+            date_int = date2int(get_today(is_UTC0=is_UTC0))
         else:
             date_int = date2int(date)
         query = f"""
