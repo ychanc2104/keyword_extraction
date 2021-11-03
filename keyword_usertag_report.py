@@ -1,0 +1,209 @@
+import time
+import pandas as pd
+import datetime
+from db.mysqlhelper import MySqlHelper
+from media.Media import Media
+from basic.date import get_date_shift, datetime_to_str, get_yesterday, to_datetime, get_today
+from basic.decorator import timing
+from jieba_based.utility import Composer_jieba
+import jieba
+import jieba.analyse
+import media.Media
+import numpy as np
+
+@timing
+def fetch_usertag(web_id, table='usertag'):
+    date_now = datetime_to_str(get_today())
+    query = f"SELECT uuid, token, usertag FROM {table} where expired_date>='{date_now}' and web_id='{web_id}'"
+    # query = f"SELECT uuid, token, usertag FROM usertag where web_id='{web_id}'"
+
+    print(query)
+    data = MySqlHelper('missioner').ExecuteSelect(query)
+    df_map_save = pd.DataFrame(data=data, columns=['uuid', 'token', 'usertag'])
+    return df_map_save
+
+def delete_expired_rows(web_id, table='usertag'):
+    date_now = datetime_to_str(get_today())
+    query = f"DELETE FROM {table} where expired_date<'{date_now}' and web_id='{web_id}'"
+    print(query)
+    MySqlHelper('missioner').ExecuteUpdate(query)
+
+def count_unique(data_dict):
+    for key, value in data_dict.items():
+        data_dict[key] = len(set(value))
+    return data_dict
+
+
+@timing
+def keyword_usertag_report(web_id, usertag_table='usertag', report_table='usertag_report'):
+    expired_date = get_date_shift(days=-3, to_str=True) ## set to today + 3
+    # for web_id in web_id_all:
+    ### collect report
+    df_map = fetch_usertag(web_id, usertag_table)
+    if df_map.size == 0:
+        print('no valid data in missioner.usertag')
+    ## count term frequency
+    usertag_dict, token_dict, uuid_dict = {}, {}, {}
+    usertags, tokens, uuids = list(df_map['usertag']), list(df_map['token']), list(df_map['uuid'])
+    L = len(usertags)
+    i = 0
+    for usertag, token, uuid in zip(usertags, tokens, uuids):
+        if usertag not in usertag_dict.keys():  # add a set
+            usertag_dict[usertag] = 1
+            token_dict[usertag] = [token]
+            uuid_dict[usertag] = [uuid]
+        else:
+            usertag_dict[usertag] += 1
+            token_dict[usertag] += [token]
+            uuid_dict[usertag] += [uuid]
+        i += 1
+        print(f"finish add counting to {usertag}, {i}/{L}")
+    token_dict = count_unique(token_dict)
+    uuid_dict = count_unique(uuid_dict)
+    ## build a dict to save to Dataframe (faster version for adding components)
+    data_save = {}
+    i = 0
+    for usertag, term_freq in usertag_dict.items():
+        data_save[i] = {'web_id': web_id, 'usertag': usertag, 'term_freq': term_freq,
+                        'token_count': token_dict[usertag],
+                        'uuid_count': uuid_dict[usertag], 'expired_date': expired_date}
+        i += 1
+    ## build Dataframe
+    df_freq_token = pd.DataFrame.from_dict(data_save, "index")
+    ## remove too small token_count, remove small number first
+    token_count_list = list(df_freq_token.token_count)
+    n_row = len(token_count_list)
+    # df_freq_token = df_freq_token[df_freq_token.token_count > 5]
+    # freq_mean = np.mean(token_count_list)
+    if n_row < 500:
+        df_freq_token = df_freq_token[df_freq_token.token_count > 2]
+        freq_limit = np.mean(token_count_list)
+        print(f"only take {n_row} keywords, filter out token_count is greater than {freq_limit}")
+    else:
+        freq_limit = np.percentile(token_count_list, [100 * (1 - 500/n_row)])[0]
+        print(f"only take top500 keywords, filter out percentile which token_count is greater than {freq_limit}")
+    df_freq_token = df_freq_token[df_freq_token.token_count > freq_limit]
+    ## convert int to sort
+    df_freq_token[['term_freq', 'token_count', 'uuid_count']] = df_freq_token[
+        ['term_freq', 'token_count', 'uuid_count']].astype('int')
+    ## save to db, clean_df(*args, df_search, columns, columns_drop, columns_rearrange)
+    usertag_report_list_dict = df_freq_token.to_dict('records')
+    query = f"REPLACE INTO {report_table} (web_id, usertag, term_freq, token_count, uuid_count, expired_date) VALUES (:web_id, :usertag, :term_freq, :token_count, :uuid_count, :expired_date)"
+    MySqlHelper('missioner', is_ssh=False).ExecuteUpdate(query, usertag_report_list_dict)
+    ## delete expired data
+    delete_expired_rows(web_id, table='usertag_report')
+    return df_freq_token
+
+
+if __name__ == '__main__':
+    web_id_all = Media().fetch_web_id()
+    # web_id_all = ['pixnet']
+    for web_id in web_id_all:
+        keyword_usertag_report(web_id, usertag_table='usertag', report_table='usertag_report')
+
+    #
+    # t_start = time.time()
+    # is_ssh = False
+    # web_id_all = Media().fetch_web_id()
+    # web_id_all = ['pixnet']
+    # expired_date = get_date_shift(days=-3, to_str=True) ## set to today + 3
+    # for web_id in web_id_all:
+    #     ### collect report
+    #     df_map = fetch_usertag(web_id)
+    #     if df_map.size == 0:
+    #         print('no valid data in missioner.usertag')
+    #         continue
+    #     ## count term frequency
+    #     usertag_dict, token_dict, uuid_dict = {}, {}, {}
+    #     usertags, tokens, uuids = list(df_map['usertag']), list(df_map['token']), list(df_map['uuid'])
+    #     L = len(usertags)
+    #     i = 0
+    #     for usertag, token, uuid in zip(usertags, tokens, uuids):
+    #         if usertag not in usertag_dict.keys():  # add a set
+    #             usertag_dict[usertag] = 1
+    #             token_dict[usertag] = [token]
+    #             uuid_dict[usertag] = [uuid]
+    #         else:
+    #             usertag_dict[usertag] += 1
+    #             token_dict[usertag] += [token]
+    #             uuid_dict[usertag] += [uuid]
+    #         i += 1
+    #         print(f"finish add counting to {usertag}, {i}/{L}")
+    #     token_dict = count_unique(token_dict)
+    #     uuid_dict = count_unique(uuid_dict)
+    #     ## build a dict to save to Dataframe (faster version for adding components)
+    #     data_save = {}
+    #     i = 0
+    #     for usertag, term_freq in usertag_dict.items():
+    #         data_save[i] = {'web_id': web_id, 'usertag': usertag, 'term_freq': term_freq, 'token_count': token_dict[usertag],
+    #                         'uuid_count': uuid_dict[usertag], 'expired_date': expired_date}
+    #         i += 1
+    #     ## build Dataframe
+    #     df_freq_token = pd.DataFrame.from_dict(data_save, "index")
+    #     ## remove too small token_count, remove small number first
+    #     token_count_list = list(df_freq_token.token_count)
+    #     n_row = len(token_count_list)
+    #     # df_freq_token = df_freq_token[df_freq_token.token_count > 5]
+    #     # freq_mean = np.mean(token_count_list)
+    #     if n_row < 500:
+    #         df_freq_token = df_freq_token[df_freq_token.token_count > 2]
+    #         freq_limit = np.mean(token_count_list)
+    #         print(f"only take {n_row} keywords, filter out token_count is greater than {freq_limit}")
+    #     else:
+    #         freq_limit = np.percentile(token_count_list, [100*(1 - 500/n_row)])[0]
+    #         print(f"only take top500 keywords, filter out percentile which token_count is greater than {freq_limit}")
+    #     df_freq_token = df_freq_token[df_freq_token.token_count > freq_limit]
+    #     ## convert int to sort
+    #     df_freq_token[['term_freq', 'token_count', 'uuid_count']] = df_freq_token[
+    #         ['term_freq', 'token_count', 'uuid_count']].astype('int')
+    #
+    #
+    #     ## save to db, clean_df(*args, df_search, columns, columns_drop, columns_rearrange)
+    #     usertag_report_list_dict = df_freq_token.to_dict('records')
+    #     query = "REPLACE INTO usertag_report (web_id, usertag, term_freq, token_count, uuid_count, expired_date) VALUES (:web_id, :usertag, :term_freq, :token_count, :uuid_count, :expired_date)"
+    #     MySqlHelper('missioner', is_ssh=is_ssh).ExecuteUpdate(query, usertag_report_list_dict)
+    #     # MySqlHelper('missioner').ExecuteInsert('usertag_report', usertag_report_list_dict)
+    #     ## delete expired data
+    #     delete_expired_rows(web_id, table='usertag_report')
+    #     #
+    #     # for usertag in usertags:
+    #     #     if usertag not in freq_dict.keys():  # add a set
+    #     #         freq_dict[usertag] = 1
+    #     #     else:
+    #     #         freq_dict[usertag] += 1
+    #     # print(f'count usertag: {usertag}')
+    #     # ## count unique uuid
+    #     # usertag_freq_uuid_toekn_list = []
+    #     # ## save to dict
+    #     # data_save = {}
+    #     # i = 0
+    #     # for usertag, term_freq in freq_dict.items():
+    #     #     token_count = len(df_map.query(f"usertag=='{usertag}'")['token'].unique())
+    #     #     uuid_count = len(df_map.query(f"usertag=='{usertag}'")['uuid'].unique())
+    #     #     # usertag_freq_uuid_toekn_list += [[web_id, usertag, term_freq, token_count, uuid_count, expired_date]]
+    #     #
+    #     #     data_save[i] = {'web_id': web_id, 'usertag': usertag, 'term_freq': term_freq, 'token_count': token_count,
+    #     #                     'uuid_count': uuid_count, 'expired_date': expired_date}
+    #     #     i += 1
+    #     #     print(f'finish {i}, usertag: {usertag}')
+    #     # ## build Dataframe
+    #     # df_freq_token = pd.DataFrame.from_dict(data_save, "index")
+    #     # ## remove too small token_count
+    #     # df_freq_token = df_freq_token[df_freq_token.token_count > 5]
+    #     #
+    #     # ## convert int to sort
+    #     # df_freq_token[['term_freq', 'token_count', 'uuid_count']] = df_freq_token[
+    #     #     ['term_freq', 'token_count', 'uuid_count']].astype('int')
+    #     # ## save to db, clean_df(*args, df_search, columns, columns_drop, columns_rearrange)
+    #     # usertag_report_list_dict = df_freq_token.to_dict('records')
+    #
+    #
+    #     # query = "REPLACE INTO usertag_report (web_id, usertag, term_freq, token_count, uuid_count, expired_date) VALUES (:web_id, :usertag, :term_freq, :token_count, :uuid_count, :expired_date)"
+    #     # MySqlHelper('missioner', is_ssh=is_ssh).ExecuteUpdate(query, usertag_report_list_dict)
+    #     # # MySqlHelper('missioner').ExecuteInsert('usertag_report', usertag_report_list_dict)
+    #     # ## delete expired data
+    #     # delete_expired_rows(web_id, table='usertag_report')
+    #
+    # t_end_program = time.time()
+    # spent_time_program = t_end_program - t_start
+    # print(f'One round spent: {spent_time_program} s')
