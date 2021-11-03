@@ -19,7 +19,7 @@ class MysqlConnector:
             with open(os.path.join(self.BASE_DIR, "db", "settings.json")) as default_config_file:
                 config = json.load(default_config_file)
                 self.config = config
-                print(config)
+                # print(config)
             if ((("SSH" in config["mysql"][service]) & (self.local_ip == '127.0.1.1')) | is_ssh) : ## in local pc
                 mysqlsql_uri = self.__ssh_forwarder(config["mysql"][service])
                 # print(mysqlsql_uri)
