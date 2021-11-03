@@ -12,13 +12,13 @@ class Media:
         # self.web_id = web_id
         self.date_min = '2020-12-01'
         # delete edge435
-        self.web_id_all = ['edh', 'bnext', 'sportz', 'awater', 'arielhsutw', 'xuite', 'ctnews', 'pixnet', 'babyhome', 'mirrormedia', 'lordcat', 'tomorrowsci', 'upmedia', 'healthbw']
+        self.web_id_all = ['edh', 'bnext', 'cmoney', 'sportz', 'awater', 'arielhsutw', 'xuite', 'ctnews', 'pixnet', 'babyhome', 'mirrormedia', 'lordcat', 'tomorrowsci', 'upmedia', 'healthbw']
 
     @staticmethod
     @timing
     def fetch_web_id(date_start=None, date_end=None, use_old=True): # default 30 days
         if use_old:
-            web_id_all = ['edh', 'bnext', 'sportz', 'awater', 'arielhsutw', 'xuite', 'ctnews', 'pixnet', 'babyhome', 'mirrormedia', 'lordcat', 'tomorrowsci', 'upmedia', 'healthbw']
+            web_id_all = ['edh', 'bnext', 'cmoney', 'sportz', 'awater', 'arielhsutw', 'xuite', 'ctnews', 'pixnet', 'babyhome', 'mirrormedia', 'lordcat', 'tomorrowsci', 'upmedia', 'healthbw']
         else:
             if date_end == None:
                 date_end = datetime_to_str(get_today())
