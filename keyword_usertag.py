@@ -23,9 +23,9 @@ def clean_keyword_list(keyword_list, stopwords, stopwords_usertag):
     return keyword_list
 
 @timing
-def fetch_browse_record_yesterday_join(web_id, is_df=False):
-    date_start = get_yesterday()
-    date_end = get_today() - datetime.timedelta(seconds=1)
+def fetch_browse_record_yesterday_join(web_id, is_df=False, is_UTC0=False):
+    date_start = get_yesterday(is_UTC0=is_UTC0)
+    date_end = get_today(is_UTC0=is_UTC0) - datetime.timedelta(seconds=1)
     query = \
         f"""
             SELECT 
@@ -56,13 +56,15 @@ def fetch_browse_record_yesterday_join(web_id, is_df=False):
     else:
         return data
 
-def delete_expired_rows(web_id, table='usertag'):
-    date_now = datetime_to_str(get_today())
+def delete_expired_rows(web_id, table='usertag', is_UTC0=False):
+    date_now = datetime_to_str(get_today(is_UTC0=is_UTC0))
     query = f"DELETE FROM {table} where expired_date<'{date_now}' and web_id='{web_id}'"
     print(query)
     MySqlHelper('missioner').ExecuteUpdate(query)
 
 if __name__ == '__main__':
+    ## set is in UTC+0 or UTC+8
+    is_UTC0 = True
     ## set up config (add word, user_dict.txt ...)
     jieba_base = Composer_jieba()
     all_hashtag = jieba_base.set_config()
@@ -73,11 +75,11 @@ if __name__ == '__main__':
     web_id_all = Media.fetch_web_id()
     # web_id_all = ['edh']
     ## get expired_date
-    expired_date = get_date_shift(days=-3, to_str=True) ## set to today + 3
+    expired_date = get_date_shift(days=-3, to_str=True, is_UTC0=is_UTC0) ## set to today + 3
     t_start_outloop = time.time()
     for web_id in web_id_all:
         ## fetch subscribed browse record
-        data = fetch_browse_record_yesterday_join(web_id, is_df=False)
+        data = fetch_browse_record_yesterday_join(web_id, is_df=False, is_UTC0=is_UTC0)
         if len(data) == 0:
             print('no valid data in dione.subscriber_browse_record')
             continue
@@ -122,7 +124,7 @@ if __name__ == '__main__':
         print(query)
         MySqlHelper('missioner', is_ssh=False).ExecuteUpdate(query, usertag_list_dict)
         ## delete expired data
-        delete_expired_rows(web_id, table='usertag')
+        delete_expired_rows(web_id, table='usertag', is_UTC0=is_UTC0)
 
         ### prepare keyword_usertag_report
         df_freq_token = keyword_usertag_report(web_id, usertag_table='usertag', report_table='usertag_report')
