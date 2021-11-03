@@ -44,6 +44,14 @@ def test_speed():
     data = MySqlHelper('dione').ExecuteSelect(query)
     return data
 
+
+@timing
+def fetch_missoner_web_id():
+    query = "SELECT web_id FROM web_id_table where missoner_keyword_enable=1"
+    print(query)
+    data = MySqlHelper('dione').ExecuteSelect(query)
+    web_id_all = [d[0] for d in data]
+    return web_id_all
 @timing
 def build_keyword_article(date=None, is_UTC0=False, n=10000):
     if (date == None):
@@ -57,7 +65,7 @@ def build_keyword_article(date=None, is_UTC0=False, n=10000):
     stopwords_missoner = jieba_base.read_file('./jieba_based/stop_words_missoner.txt')
     ## set up media
     media = Media()
-    web_id_all = media.fetch_web_id()
+    web_id_all = fetch_missoner_web_id()
     # web_id_all = ['ctnews']
     # n = 500
     for web_id in web_id_all:

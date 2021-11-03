@@ -1,8 +1,7 @@
 from basic.decorator import timing
 from gensim_compose.embedding import Composer
+from keyword_missoner import fetch_missoner_web_id
 from db.mysqlhelper import MySqlHelper
-# from strsimpy.jaro_winkler import JaroWinkler
-# from strsimpy.longest_common_subsequence import LongestCommonSubsequence
 from strsimpy.damerau import Damerau
 from basic.date import get_hour, date2int, get_today, get_yesterday, get_date_shift, datetime_to_str
 import pandas as pd
@@ -41,12 +40,11 @@ def fetch_keywords(web_id, date):
 
 @timing
 def insert_keyword_similarity(date):
+    print('Loading model...')
     composer = Composer()
     composer.load_model(path='./gensim_compose/word2vec_zh_only.model')
     damerau = Damerau()
-    ## set up media
-    media = Media()
-    web_id_all = media.fetch_web_id()
+    web_id_all = fetch_missoner_web_id()
     # web_id_all = ['ctnews']
     for web_id in web_id_all:
         keywords = np.array(fetch_keywords(web_id, date))

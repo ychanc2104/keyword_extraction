@@ -23,6 +23,14 @@ def clean_keyword_list(keyword_list, stopwords, stopwords_usertag):
     return keyword_list
 
 @timing
+def fetch_usertag_web_id():
+    query = "SELECT web_id FROM web_id_table where usertag_keyword_enable=1"
+    print(query)
+    data = MySqlHelper('dione').ExecuteSelect(query)
+    web_id_all = [d[0] for d in data]
+    return web_id_all
+
+@timing
 def fetch_browse_record_yesterday_join(web_id, is_df=False, is_UTC0=False):
     date_start = get_yesterday(is_UTC0=is_UTC0)
     date_end = get_today(is_UTC0=is_UTC0) - datetime.timedelta(seconds=1)
@@ -71,9 +79,7 @@ if __name__ == '__main__':
     all_hashtag = jieba_base.set_config()
     stopwords = jieba_base.get_stopword_list()
     stopwords_usertag = jieba_base.read_file('./jieba_based/stop_words_usertag.txt')
-    ## set up media
-    Media = Media()
-    web_id_all = Media.fetch_web_id()
+    web_id_all = fetch_usertag_web_id()
     # web_id_all = ['edh']
     ## get expired_date
     expired_date = get_date_shift(days=-3, to_str=True, is_UTC0=is_UTC0) ## set to today + 3
