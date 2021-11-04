@@ -230,15 +230,15 @@ if __name__ == '__main__':
     # jieba.analyse.set_idf_path(f'../jieba_based/dict_zhTW.txt')
     # jieba.analyse.set_idf_path(f'../jieba_based/idf_collect2.txt')
     #
-    news = '--急--請教第四台線路高手～～贈15點-- 標題: 2010暑假墾丁遊3的12次方-7的6次方經分解後的質因數中......!!-- HI~~ 我想找便宜的逢甲民宿，大家有台中逢甲團體住宿推薦嗎-1到710的正整數中與42互質的有幾個-2004'
+    news = '--aaaaa急--請教第四台線路高手～～贈15點-- 標題: 2010暑假墾丁遊3的12次方-7的6次方經分解後的質因數中......!!-- HI~~ 我想找便宜的逢甲民宿，大家有台中逢甲團體住宿推薦嗎-1到710的正整數中與42互質的有幾個-2004'
     #
-    a = jieba.analyse.extract_tags(news)
-    b = jieba.cut(news)
-    print('/'.join(a))
-    print('/'.join(b))
+    # a = jieba.analyse.extract_tags(news)
+    # b = jieba.cut(news)
+    # print('/'.join(a))
+    # print('/'.join(b))
 
 
-    # b = Composer_jieba().preserve_str(news)
+    b = Composer_jieba().preserve_str(news, pattern="[\u4E00-\u9FFF|a-zA-Z]*")
     #
     # a = re.findall(pattern="[\u4E00-\u9FFF]*", string=news)
     # news_clean = ' '.join(a)

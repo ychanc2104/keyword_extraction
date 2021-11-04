@@ -1,0 +1,63 @@
+2021-11-04 19:22:17,787 INFO mysql: (sqlalchemy.exc.InvalidRequestError) A value is required for bind parameter 'date'
+[SQL: 
+            REPLACE INTO missoner_keyword_crossHot
+            (keyword, pageviews, external_source_count, internal_source_count, landings, exits, bounce, timeOnPage, date)
+            VALUES 
+            (%(keyword)s, %(pageviews)s, %(external_source_count)s, %(internal_source_count)s, %(landings)s, %(exits)s, %(bounce)s, %(timeOnPage)s, %(date)s)
+            ]
+[parameters: [{'keyword': '11月運勢', 'pageviews': Decimal('57393'), 'external_source_count': Decimal('53555'), 'internal_source_count': Decimal('3838'), 'mentionedAr ... (27645 characters truncated) ... '21'), 'mentionedArticles': 6, 'landings': Decimal('18901'), 'exits': Decimal('19596'), 'bounce': Decimal('11205'), 'timeOnPage': Decimal('2028906')}]]
+(Background on this error at: https://sqlalche.me/e/14/cd3x)
+2021-11-04 19:22:17,787 INFO mysql: (sqlalchemy.exc.InvalidRequestError) A value is required for bind parameter 'date'
+[SQL: 
+            REPLACE INTO missoner_keyword_crossHot
+            (keyword, pageviews, external_source_count, internal_source_count, landings, exits, bounce, timeOnPage, date)
+            VALUES 
+            (%(keyword)s, %(pageviews)s, %(external_source_count)s, %(internal_source_count)s, %(landings)s, %(exits)s, %(bounce)s, %(timeOnPage)s, %(date)s)
+            ]
+[parameters: [{'keyword': '11月運勢', 'pageviews': Decimal('57393'), 'external_source_count': Decimal('53555'), 'internal_source_count': Decimal('3838'), 'mentionedAr ... (27645 characters truncated) ... '21'), 'mentionedArticles': 6, 'landings': Decimal('18901'), 'exits': Decimal('19596'), 'bounce': Decimal('11205'), 'timeOnPage': Decimal('2028906')}]]
+(Background on this error at: https://sqlalche.me/e/14/cd3x)
+2021-11-04 19:24:19,252 INFO mysql: (sqlalchemy.exc.InvalidRequestError) A value is required for bind parameter 'date'
+[SQL: 
+            REPLACE INTO missoner_keyword_crossHot
+            (keyword, pageviews, external_source_count, internal_source_count, landings, exits, bounce, timeOnPage, date)
+            VALUES 
+            (%(keyword)s, %(pageviews)s, %(external_source_count)s, %(internal_source_count)s, %(landings)s, %(exits)s, %(bounce)s, %(timeOnPage)s, %(date)s)
+            ]
+[parameters: [{'keyword': '11月運勢', 'pageviews': Decimal('57393'), 'external_source_count': Decimal('53555'), 'internal_source_count': Decimal('3838'), 'mentionedAr ... (27646 characters truncated) ... '21'), 'mentionedArticles': 6, 'landings': Decimal('18901'), 'exits': Decimal('19596'), 'bounce': Decimal('11205'), 'timeOnPage': Decimal('2028906')}]]
+(Background on this error at: https://sqlalche.me/e/14/cd3x)
+2021-11-04 19:24:19,252 INFO mysql: (sqlalchemy.exc.InvalidRequestError) A value is required for bind parameter 'date'
+[SQL: 
+            REPLACE INTO missoner_keyword_crossHot
+            (keyword, pageviews, external_source_count, internal_source_count, landings, exits, bounce, timeOnPage, date)
+            VALUES 
+            (%(keyword)s, %(pageviews)s, %(external_source_count)s, %(internal_source_count)s, %(landings)s, %(exits)s, %(bounce)s, %(timeOnPage)s, %(date)s)
+            ]
+[parameters: [{'keyword': '11月運勢', 'pageviews': Decimal('57393'), 'external_source_count': Decimal('53555'), 'internal_source_count': Decimal('3838'), 'mentionedAr ... (27646 characters truncated) ... '21'), 'mentionedArticles': 6, 'landings': Decimal('18901'), 'exits': Decimal('19596'), 'bounce': Decimal('11205'), 'timeOnPage': Decimal('2028906')}]]
+(Background on this error at: https://sqlalche.me/e/14/cd3x)
+2021-11-04 19:25:13,359 INFO mysql: (sqlalchemy.exc.InvalidRequestError) A value is required for bind parameter 'date'
+[SQL: 
+            REPLACE INTO missoner_keyword_crossHot
+            (keyword, pageviews, external_source_count, internal_source_count, landings, exits, bounce, timeOnPage, date)
+            VALUES 
+            (%(keyword)s, %(pageviews)s, %(external_source_count)s, %(internal_source_count)s, %(landings)s, %(exits)s, %(bounce)s, %(timeOnPage)s, %(date)s)
+            ]
+[parameters: [{'keyword': '11月運勢', 'pageviews': Decimal('57393'), 'external_source_count': Decimal('53555'), 'internal_source_count': Decimal('3838'), 'mentionedAr ... (27646 characters truncated) ... '21'), 'mentionedArticles': 6, 'landings': Decimal('18901'), 'exits': Decimal('19596'), 'bounce': Decimal('11205'), 'timeOnPage': Decimal('2028906')}]]
+(Background on this error at: https://sqlalche.me/e/14/cd3x)
+2021-11-04 19:25:13,359 INFO mysql: (sqlalchemy.exc.InvalidRequestError) A value is required for bind parameter 'date'
+[SQL: 
+            REPLACE INTO missoner_keyword_crossHot
+            (keyword, pageviews, external_source_count, internal_source_count, landings, exits, bounce, timeOnPage, date)
+            VALUES 
+            (%(keyword)s, %(pageviews)s, %(external_source_count)s, %(internal_source_count)s, %(landings)s, %(exits)s, %(bounce)s, %(timeOnPage)s, %(date)s)
+            ]
+[parameters: [{'keyword': '11月運勢', 'pageviews': Decimal('57393'), 'external_source_count': Decimal('53555'), 'internal_source_count': Decimal('3838'), 'mentionedAr ... (27646 characters truncated) ... '21'), 'mentionedArticles': 6, 'landings': Decimal('18901'), 'exits': Decimal('19596'), 'bounce': Decimal('11205'), 'timeOnPage': Decimal('2028906')}]]
+(Background on this error at: https://sqlalche.me/e/14/cd3x)
+2021-11-04 19:25:13,359 INFO mysql: (sqlalchemy.exc.InvalidRequestError) A value is required for bind parameter 'date'
+[SQL: 
+            REPLACE INTO missoner_keyword_crossHot
+            (keyword, pageviews, external_source_count, internal_source_count, landings, exits, bounce, timeOnPage, date)
+            VALUES 
+            (%(keyword)s, %(pageviews)s, %(external_source_count)s, %(internal_source_count)s, %(landings)s, %(exits)s, %(bounce)s, %(timeOnPage)s, %(date)s)
+            ]
+[parameters: [{'keyword': '11月運勢', 'pageviews': Decimal('57393'), 'external_source_count': Decimal('53555'), 'internal_source_count': Decimal('3838'), 'mentionedAr ... (27646 characters truncated) ... '21'), 'mentionedArticles': 6, 'landings': Decimal('18901'), 'exits': Decimal('19596'), 'bounce': Decimal('11205'), 'timeOnPage': Decimal('2028906')}]]
+(Background on this error at: https://sqlalche.me/e/14/cd3x)

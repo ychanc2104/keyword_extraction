@@ -12,7 +12,7 @@ from jieba_based.utility import Composer_jieba
 from db.mysqlhelper import MySqlHelper
 from media.Media import Media
 from basic.date import get_hour, date2int, get_today, get_yesterday
-
+from keyword_cross_hot import update_cross_keywords
 
 
 def clean_keyword_list(keyword_list, stopwords, stopwords_missoner):
@@ -90,7 +90,7 @@ def fetch_hot_articles(web_id, n=50, date=None, is_UTC0=False): # default get to
     df_hot = pd.DataFrame(data=data, columns=columns)
     return df_hot
 
-## process one day if assign date, default is today
+## main, process one day if assign date, default is today
 @timing
 def build_keyword_article(date=None, is_UTC0=False, n=10000):
     if (date == None):
@@ -184,31 +184,34 @@ def build_keyword_article(date=None, is_UTC0=False, n=10000):
         df_map_list_dict = df_map.to_dict('records')
         query = "REPLACE INTO missoner_keyword_article (web_id, article_id, keyword, is_cut) VALUES (:web_id, :article_id, :keyword, :is_cut)"
         MySqlHelper('dione', is_ssh=False).ExecuteUpdate(query, df_map_list_dict)
-    return df_select, df_map
+        ## save cross hot keywords
+        df_hot_keyword = update_cross_keywords(date_int=date)
+
+    return df_select, df_map, df_hot_keyword
 
 
 ## analyze data yesterday, insert two tables, missoner_keyword and missoner_keyword_article
 if __name__ == '__main__':
-
     t_start = time.time()
-    date = None ## None: assign today
+    date = None
+    # date = '2021-10-30' ## None: assign today
     if socket.gethostbyname(socket.gethostname()) == '127.0.1.1':
-        is_UTC0 = True
-    else:
         is_UTC0 = False
+    else:
+        is_UTC0 = True
     # date = '2021-11-01'
     hour_now = get_hour(is_UTC0=is_UTC0)
     if (hour_now == 3):
         ## routine
-        df_select, df_map = build_keyword_article(date=date, n=5000, is_UTC0=is_UTC0)
+        df_select, df_map, df_hot_keyword = build_keyword_article(date=date, n=5000, is_UTC0=is_UTC0)
         print(f'routine to update every hour, hour: {hour_now}')
         yesterday = get_yesterday(is_UTC0=is_UTC0)
         ## cal at 0,1,2 to confirm data is complete
-        df_select_y, df_map_y = build_keyword_article(date=yesterday, n=50000, is_UTC0=is_UTC0)
+        df_select_y, df_map_y, df_hot_keyword_y = build_keyword_article(date=yesterday, n=50000, is_UTC0=is_UTC0)
         print(f"in 3:00 (UTC+8), update yesterday all browse record")
         # print(f"in time range between 0 and 2 (UTC+8), update yesterday all twice(at 0, 1 and 2 o'clock)")
     else:
-        df_select, df_map = build_keyword_article(date=date, n=5000, is_UTC0=is_UTC0)
+        df_select, df_map, df_hot_keyword = build_keyword_article(date=date, n=5000, is_UTC0=is_UTC0)
         print(f'routine to update every hour, hour: {hour_now}')
     t_end = time.time()
     t_spent = t_end - t_start

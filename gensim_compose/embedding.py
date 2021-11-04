@@ -6,7 +6,7 @@ import jieba
 from opencc import OpenCC
 import numpy as np
 from jieba_based.utility import Composer_jieba
-
+from basic.date import get_today, datetime_to_str
 from basic.decorator import timing
 
 class Composer(Composer_jieba):
@@ -16,22 +16,18 @@ class Composer(Composer_jieba):
     ## \x3130 -\x318F(韓文)
     ## \xAC00 -\xD7A3(韓文)
 
-    def extract_wiki(self, path='/home/clare/Downloads/zhwiki-20210801-pages-articles-multistream.xml.bz2'):
+    def extract_wiki(self, path_read='/home/clare/Downloads/zhwiki-20210801-pages-articles-multistream.xml.bz2', path_write='wiki_text.txt'):
         ## extract wiki article
-        wiki_corpus = WikiCorpus(path, dictionary={})
+        wiki_corpus = WikiCorpus(path_read, dictionary={})
         text_num = 0
-        with open('wiki_text.txt', 'w', encoding='utf-8') as f:
+        today_str = datetime_to_str(get_today())
+        with open(path_write, 'w', encoding='utf-8') as f:
             for text in wiki_corpus.get_texts():
                 f.write(' '.join(text) + '\n')
                 text_num += 1
                 if text_num % 10000 == 0:
                     print('{} articles processed.'.format(text_num))
             print('{} articles processed.'.format(text_num))
-    # def zwcn2tw(self, data_cn):
-    #     # Initial
-    #     cc = OpenCC('s2t')
-    #     data_tw = cc.convert(data_cn)
-    #     return data_tw
 
     def file_ct2tw(self, path):
         path_write = path.split('/')
@@ -43,12 +39,6 @@ class Composer(Composer_jieba):
                     print(f'data num: {i}, data: {data}')
                     data = self.zwcn2tw(data)
                     new_f.write(data)
-
-    # def load_jieba_config(self):
-    #     jieba.set_dictionary('../jieba_based/dict.txt.big.txt')  ## tradictional chinese dictionary
-    #     jieba.load_userdict('../jieba_based/user_dict.txt')  ## user-defined dictionary (word, weight, POS(PartOfSpeech))
-    #     # jieba.analyse.set_stop_words('../jieba_based/stop_words.txt') ## for analyse
-    #     # jieba.analyse.set_idf_path('../jieba_based/jieba_idf.txt') ## for analyse
 
     def clean_keyword_list(self, keyword_list, stopwords, stopwords_missoner):
         keyword_list = Composer_jieba().clean_keyword(keyword_list, stopwords)  ## remove stopwords
@@ -97,8 +87,10 @@ class Composer(Composer_jieba):
             with open(path_read, 'r', encoding='utf-8') as f:
                 for times, text in enumerate(f, 1):
                     text = self.zwcn2tw(text) ## to tw_zh
-                    ## preserve chinese only
-                    text = self.preserve_str(text)
+                    # preserve chinese only
+                    # text = self.preserve_str(text)
+                    ## preserve chinese and English
+                    text = self.preserve_str(text, pattern="[\u4E00-\u9FFF|a-zA-Z]*")
 
                     # ## pattern for removing https
                     # text = self.filter_str(text, pattern="https:\/\/([0-9a-zA-Z.\/]*)")
@@ -130,19 +122,6 @@ class Composer(Composer_jieba):
             batch_words=batch_words
         )
         model.save(path_write)
-
-    def clean_keyword_list(self, keyword_list, stopwords, stopwords_usertag):
-        keyword_list = Composer_jieba().clean_keyword(keyword_list, stopwords)  ## remove stopwords
-        keyword_list = Composer_jieba().clean_keyword(keyword_list,
-                                                      stopwords_usertag)  ## remove stopwords, only for usertag
-        keyword_list = Composer_jieba().filter_quantifier(keyword_list)  ## remove number+quantifier, ex: 5.1萬
-        keyword_list = Composer_jieba().filter_str_list(keyword_list, pattern="[0-9]{2}")  ## remove 2 digit number
-        keyword_list = Composer_jieba().filter_str_list(keyword_list, pattern="[0-9.]*")  ## remove floating
-        keyword_list = Composer_jieba().filter_str_list(keyword_list,
-                                                        pattern="[a-z]{1,4}|[A-Z]{2}")  ## remove 1-4 lowercase letter and 2 Upper
-        keyword_list = [keyword for keyword in keyword_list if keyword != '']  ## remove blank
-        return keyword_list
-
 
     @timing
     def load_model(self, path='./gensim_compose/word2vec.model'):
@@ -191,33 +170,25 @@ class Composer(Composer_jieba):
             similarity = sum(vector_1*vector_2)/(norm_1*norm_2)
         return similarity
 
-    def remove_en(self, text):
-        # text_split = text.split(' ')
-        # regex = re.compile(r'[^A-Za-z]+')
-        # # text_list = [regex.findall(text) for text in text_split]
-        # # text_list = [text[0] for text in text_list if len(text)!=0]
-        # text_list = regex.findall(text)
-        # text_list = [text.replace(' ','') for text in text_list if text!=' ']
-        # text_clean = ' '.join(text_list)
-        # return text_clean
-        regex = re.compile(r'[^A-Za-z]+')
-        text_list = regex.findall(text)
-        text_clean = ''
-        for text in text_list:
-            if text != ' ' and text != '':
-                text_clean += text
-        return text_clean.replace('  ',' ')
 
 if __name__ == '__main__':
 
     composer = Composer()
-    # composer.cut(in_sub_folder=True, path_write='wiki_text_seg_zh_only.txt')
+    ############## extract wiki text ###############
+    composer.extract_wiki(path_read='../gitignore/wiki/zhwiki-20211101-pages-articles-multistream.xml.bz2', path_write='20211101_wiki_text.txt')
+    ############## extract wiki text ###############
 
+    ############## tokenize wiki text ###############
+    # composer.cut(in_sub_folder=True, path_write='wiki_text_seg_zh_only.txt')
+    ############## tokenize wiki text ###############
+
+    ############## train word embedding ###############
     # composer.fit(path_read='wiki_text_seg.txt', path_write='word2vec.model')
     # composer.fit(path_read='wiki_text_seg_zh_only.txt', path_write='word2vec_zh_only.model')
+    ############## train word embedding ###############
 
-    composer.load_model(path='word2vec_zh_only.model')
-    composer.most_similar('疫苗')
+    # composer.load_model(path='word2vec_zh_only.model')
+    # composer.most_similar('疫苗')
 
     #
     # mean_vector = composer.mean_word2vector(['海鹽', '巧克力'])
