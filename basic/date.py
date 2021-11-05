@@ -39,8 +39,11 @@ def get_hour(is_UTC0=False):
     else:
         return today.hour
 
-def get_date_shift(days=0, to_str=False, pattern='%Y-%m-%d', is_UTC0=False): # YYYY-mm-dd-0-0
-    today = datetime.datetime.today()
+def get_date_shift(date_ref=None, days=0, to_str=False, pattern='%Y-%m-%d', is_UTC0=False): # YYYY-mm-dd-0-0
+    if date_ref == None:
+        today = datetime.datetime.today()
+    else:
+        today = to_datetime(date_ref)
     if is_UTC0: # add 8 hour to UTC+8
         today = today + datetime.timedelta(hours=8)
     date_shift = today - datetime.timedelta(days=days ,hours=today.hour ,minutes=today.minute ,seconds=today.second

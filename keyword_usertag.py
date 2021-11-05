@@ -64,6 +64,41 @@ def fetch_browse_record_yesterday_join(web_id, is_df=False, is_UTC0=False):
     else:
         return data
 
+@timing
+def fetch_browse_record_join(web_id, date, is_df=False):
+    date_start = to_datetime(date)
+    date_end = date_start - datetime.timedelta(days=-1, seconds=1)
+    query = \
+        f"""
+            SELECT 
+            s.uuid,
+            t.code,
+            t.registation_id AS token,
+            s.article_id,
+            l.title,
+            l.content,
+            l.keywords
+        FROM
+            subscriber_browse_record s
+                INNER JOIN
+            article_list l ON s.article_id = l.signature                
+                AND s.web_id = '{web_id}'                
+                AND s.click_time BETWEEN '{date_start}' AND '{date_end}'
+                AND l.web_id = '{web_id}'
+                INNER JOIN         
+            token_index t ON t.uuid = s.uuid
+                AND t.invalid = 0
+                AND t.web_id = '{web_id}'            
+        """
+    print(query)
+    data = MySqlHelper('dione').ExecuteSelect(query)
+    if is_df:
+        df = pd.DataFrame(data, columns=['web_id', 'uuid', 'token', 'article_id', 'title', 'content', 'keywords'])
+        return df
+    else:
+        return data
+
+
 # def delete_expired_rows(web_id, table='usertag', is_UTC0=False, jump2gcp=True):
 #     date_now = datetime_to_str(get_today(is_UTC0=is_UTC0))
 #     query = f"DELETE FROM {table} where expired_date<'{date_now}' and web_id='{web_id}'"
@@ -74,6 +109,8 @@ if __name__ == '__main__':
     ## set is in UTC+0 or UTC+8
     is_UTC0 = True
     jump2gcp = True
+    date = get_yesterday(is_UTC0=is_UTC0) ## compute all browsing record yesterday ad 3:10 o'clock
+    # date = '2021-11-4'
     ## set up config (add word, user_dict.txt ...)
     jieba_base = Composer_jieba()
     all_hashtag = jieba_base.set_config()
@@ -82,11 +119,12 @@ if __name__ == '__main__':
     web_id_all = fetch_usertag_web_id()
     # web_id_all = ['edh']
     ## get expired_date
-    expired_date = get_date_shift(days=-3, to_str=True, is_UTC0=is_UTC0) ## set to today + 3
+    expired_date = get_date_shift(date_ref=date, days=-3, to_str=True, is_UTC0=is_UTC0) ## set to today + 3
     t_start_outloop = time.time()
     for web_id in web_id_all:
         ## fetch subscribed browse record
-        data = fetch_browse_record_yesterday_join(web_id, is_df=False, is_UTC0=is_UTC0)
+        # data = fetch_browse_record_yesterday_join(web_id, is_df=False, is_UTC0=is_UTC0)
+        data = fetch_browse_record_join(web_id, date=date, is_df=False)
         if len(data) == 0:
             print('no valid data in dione.subscriber_browse_record')
             continue

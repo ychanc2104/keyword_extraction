@@ -16,3 +16,4 @@
 /db/settings.json
 /db/sysconfig.ini
 /db/sysconfig_local.ini
+/gAPI/client_secrets.json
