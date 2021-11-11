@@ -17,3 +17,5 @@
 /db/sysconfig.ini
 /db/sysconfig_local.ini
 /gAPI/client_secrets.json
+/gAPI/authorizedcreds.dat
+/gAPI/google-ads.yaml
