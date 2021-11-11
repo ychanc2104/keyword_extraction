@@ -91,7 +91,6 @@ class Composer(Composer_jieba):
                     # text = self.preserve_str(text)
                     ## preserve chinese and English
                     text = self.preserve_str(text, pattern="[\u4E00-\u9FFF|a-zA-Z]*")
-
                     # ## pattern for removing https
                     # text = self.filter_str(text, pattern="https:\/\/([0-9a-zA-Z.\/]*)")
                     # text = self.filter_str(text, pattern="[A-Za-z]*") ## remove English
@@ -100,12 +99,14 @@ class Composer(Composer_jieba):
                     print(f'data num: {times}, data: {text}')
                     text_cut = jieba.cut(text, HMM=False)
                     cut_list = [word for word in text_cut if word != ' ']
+                    cut_list = [word for word in cut_list if len(word) != 1] # remove one word
                     cut_list = self.clean_keyword(cut_list, stopword_list)  ## remove stopwords
+                    cut_list = composer.filter_str_list(cut_list, pattern="[a-z]{2}")  ## remove 2 letter English
                     # cut_list = self.filter_str_list(cut_list, pattern="[0-9]{2}")  ## remove 2 digit number
                     # cut_list = self.filter_str_list(cut_list, pattern="[0-9.]*")  ## remove floating
                     # cut_list = self.filter_str_list(cut_list, pattern="[A-Za-z]*")  ## remove English
-
                     cut_list_join = ' '.join(cut_list)
+                    print(f"cut results: {cut_list_join}")
                     new_f.write(cut_list_join)
 
     def fit(self, path_read='wiki_text_seg.txt', path_write='word2vec.model', seed=666, sg=0, window_size=10, vector_size=100, min_count=1, workers=8, epochs=5, batch_words=10000):
@@ -174,14 +175,20 @@ class Composer(Composer_jieba):
 if __name__ == '__main__':
 
     composer = Composer()
-    ############## extract wiki text ###############
-    composer.extract_wiki(path_read='../gitignore/wiki/zhwiki-20211101-pages-articles-multistream.xml.bz2', path_write='20211101_wiki_text.txt')
-    ############## extract wiki text ###############
+    ############## extract wiki from .xml.bz2 to .txt ###############
+    # composer.extract_wiki(path_read='../gitignore/wiki/zhwiki-20211101-pages-articles-multistream.xml.bz2', path_write='20211101_wiki_text.txt')
+    ############## extract wiki from .xml.bz2 to .txt ###############
 
-    ############## tokenize wiki text ###############
-    # composer.cut(in_sub_folder=True, path_write='wiki_text_seg_zh_only.txt')
-    ############## tokenize wiki text ###############
+    ################## tokenize wiki text ###################
+    composer.cut(in_sub_folder=True, path_read='../gitignore/wiki/20211101_wiki_text.txt', path_write='20211101_wiki_text_seg_remove_one.txt')
+    ################## tokenize wiki text ###################
 
+
+    # text = '船歌 barcarolle 源自意大利語 barca 意爲 起源於意大利威尼斯 有趣的是 把這種曲調發揚起來的 反而並不是意大利作曲家 船歌一般都是採用以 拍寫成 例如貝多芬的 號交響曲 樂章便是最好的引證'
+    # text_cut = jieba.cut(text, HMM=False)
+    # cut_list = [word for word in text_cut if word != ' ']
+    # cut_list = [word for word in cut_list if len(word) != 1]  # remove one word
+    # cut_list = composer.filter_str_list(cut_list, pattern="[a-z]{2}")  ## remove English
     ############## train word embedding ###############
     # composer.fit(path_read='wiki_text_seg.txt', path_write='word2vec.model')
     # composer.fit(path_read='wiki_text_seg_zh_only.txt', path_write='word2vec_zh_only.model')
