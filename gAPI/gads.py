@@ -63,7 +63,6 @@ class GoogleAds:
         keyword_plan_network = (client.enums.KeywordPlanNetworkEnum.GOOGLE_SEARCH_AND_PARTNERS)
         location_rns = self._map_locations_ids_to_resource_names(client, location_ids)
         language_rn = client.get_service("LanguageConstantService").language_constant_path(language_id)
-
         # Only one of the fields "url_seed", "keyword_seed", or
         # "keyword_and_url_seed" can be set on the request, depending on whether
         # keywords, a page_url or both were passed to this function.
@@ -93,20 +92,12 @@ class GoogleAds:
                 low_price = idea.keyword_idea_metrics.low_top_of_page_bid_micros / 1000000
                 high_price = idea.keyword_idea_metrics.high_top_of_page_bid_micros / 1000000
                 avg_monthly_traffic = idea.keyword_idea_metrics.avg_monthly_searches
-                keywords_info[i] = {'keyword_join': idea_join, 'keyword_ask': keyword_list[index],
+                keywords_info[i] = {'keyword_ask': keyword_list[index], 'keyword_join': idea_join,
                                     'keyword_google': idea.text,
                                     'competition_level': competition_level, 'competition_value': competition_value,
                                     'low_price': low_price, 'high_price': high_price,
                                     'avg_monthly_traffic': avg_monthly_traffic, 'date': date_update}
                 i += 1
-                # print(
-                #     f'Keyword idea text "{idea.text}" has '
-                #     f'"{idea.keyword_idea_metrics.avg_monthly_searches}" '
-                #     f'average monthly searches and "{competition_value}" '
-                #     "competition.\n"
-                #     f'20th percentile bidding price for keyword: "{low_price}", '
-                #     f'80th percentile bidding price for keyword: "{high_price}"\n'
-                # )
         df = pd.DataFrame.from_dict(keywords_info, "index")
         return df
 
@@ -153,14 +144,6 @@ class GoogleAds:
                                     'low_price':low_price, 'high_price':high_price, 'traffic':traffic,
                                     'avg_monthly_traffic':avg_monthly_traffic, 'date':date, 'date_update':date_update}
                 i += 1
-            # print(
-            #     f'Keyword idea text "{idea.text}" has '
-            #     f'"{idea.keyword_idea_metrics.avg_monthly_searches}" '
-            #     f'average monthly searches and "{competition_value}" '
-            #     "competition.\n"
-            #     f'20th percentile bidding price for keyword: "{low_price}", '
-            #     f'80th percentile bidding price for keyword: "{high_price}"\n'
-            # )
         df = pd.DataFrame.from_dict(keywords_info, "index")
         return df
 
@@ -178,4 +161,4 @@ class GoogleAds:
 if __name__ == "__main__":
 
     gad = GoogleAds()
-    df = gad.get_keyword_info('nanoone')
+    df = gad.get_keyword_info('湖人')

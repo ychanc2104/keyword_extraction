@@ -43,7 +43,7 @@ class GoogleSearchConsole(GoogleOAuth2):
         MySqlHelper('roas_report').ExecuteUpdate(query_q, search_console_query_list_dict)
 
         keyword_list = list(set(df_search_console_query['query']))
-        df_keywords_metrics = self._generate_keywords_metrics(keyword_list, path_ads_config)
+        df_keywords_metrics = self._generate_keyword_metrics(keyword_list, path_ads_config)
         keywords_metrics_list_dict = df_keywords_metrics.to_dict('records')
         query_ads = "REPLACE INTO google_ads_metrics " \
                     "(keyword_join, keyword_ask, keyword_google, low_price, high_price, avg_monthly_traffic, " \
@@ -99,7 +99,7 @@ class GoogleSearchConsole(GoogleOAuth2):
         return df_search_console
 
 
-    def _generate_keywords_metrics(self, keyword_list, path_ads_config):
+    def _generate_keyword_metrics(self, keyword_list, path_ads_config):
         n_keyword = len(keyword_list)
         indexes = np.append(np.arange(0, n_keyword, 20), n_keyword)
         google_ad = GoogleAds(path_ads_config=path_ads_config)

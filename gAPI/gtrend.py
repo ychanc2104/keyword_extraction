@@ -35,6 +35,7 @@ class gtrend:
         self.TrendReq = TrendReq()
         self.token_payload = {}
 
+    ## max day of google trend is 30 days
     def insert_gtrend_keywords(self, date_start=None, date_end=None, filter_repeat=True):
         if date_end == None:
             date_end = datetime_to_str(get_today())
@@ -48,6 +49,7 @@ class gtrend:
         # MySqlHelper('dione').ExecuteInsert('google_trend_keyword', df_30day_list_of_dict)
         return df_30day
 
+    ## for routine
     def update_latest_two_days(self, is_ssh=False):
         date_end = datetime_to_str(get_today())
         date_start = datetime_to_str(to_datetime(date_end) - datetime.timedelta(days=1))
@@ -57,8 +59,6 @@ class gtrend:
         # query = "INSERT IGNORE INTO google_trend_keyword (keyword, relatedQueries, traffic, date) VALUES (:keyword, :relatedQueries, :traffic, :date)"
         MySqlHelper('dione', is_ssh=is_ssh).ExecuteUpdate(query, df_2day_list_of_dict)
         return df_2day
-
-
 
     # get only latest one month
     def fetch_keyword(self, date_start, date_end, filter_repeat=True, is_select=True):
