@@ -1,5 +1,5 @@
 import datetime
-
+import socket
 
 def to_datetime(date):
     if type(date) == str:
@@ -77,4 +77,10 @@ def date2int(date, sep='-'):
         date_int = int(''.join(date_str.split(sep)))
     return date_int
 
-
+def check_is_UTC0():
+    local_ip = socket.gethostbyname(socket.gethostname())
+    if local_ip == '127.0.1.1': # in localhost, UTC+8
+        is_UTC0 = False
+    else:
+        is_UTC0 = True
+    return is_UTC0
