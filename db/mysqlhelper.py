@@ -66,3 +66,22 @@ class MySqlHelper:
         self.sql_connector.get_session().get_bind().close()
         self.sql_connector.get_session().close()
         return data
+
+    ## support INSERT and REPLACE INTO
+    @staticmethod
+    def generate_update_SQLquery(df, table_name, SQL_ACTION="REPLACE INTO"):
+        columns = df.columns.values
+        n_col = len(columns)
+        query = f"{SQL_ACTION} {table_name}"
+        # query = "REPLACE INTO google_search_console_device (web_id, clicks, impressions, position, device, date) VALUES (:web_id, :clicks, :impressions, :position, :device, :date)"
+        params, bind_params = "(", "("
+        for i, col in enumerate(columns):
+            if i == (n_col - 1):  ## reach end
+                params += f"{col})"
+                bind_params += f":{col})"
+            else:
+                params += f"{col},"
+                bind_params += f":{col},"
+        query = f"{query} {params} VALUES {bind_params}"
+        print(f"auto-generating SQL script, \n{query}")
+        return query
