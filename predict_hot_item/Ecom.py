@@ -1,6 +1,7 @@
 from db.mysqlhelper import MySqlHelper
 from db.mysqlconnector import MysqlConnector
 from basic.decorator import timing
+from basic.date import to_datetime, get_yesterday
 from basic.filter import MA
 from sqlalchemy.sql import text
 import datetime
@@ -13,6 +14,116 @@ class Ecom:
     def __init__(self, web_id='i3fresh'): ##
         self.web_id = web_id
         self.date_min = '2020-12-01'
+
+    @timing
+    def insert_daily_report(self, web_id, mode_insert='all', date_start=None, is_reformat_product_id=False):
+        date_yesterday = get_yesterday()
+        if mode_insert == 'all':
+            df = self.sqldate(web_id, self.date_min, date_yesterday, is_reformat_product_id=is_reformat_product_id)
+        elif mode_insert == 'one':
+            df = self.sqldate(web_id, date_start, date_start, is_reformat_product_id=is_reformat_product_id)
+        elif mode_insert == 'assign':
+            df = self.sqldate(web_id, date_start, date_yesterday, is_reformat_product_id=is_reformat_product_id)
+        elif mode_insert == 'yesterday':
+            df = self.sqldate(web_id, date_yesterday, date_yesterday) ## latest data do not require get new product_id
+
+        if np.array(df).size == 0:
+            print('data is empty')
+            return []
+        else:
+            ## remove useless column
+            df = df.drop(columns=['date_count'])
+            # df = df.rename(columns={'transcation':'transaction'}) ## fix typing error in cdp_ad2
+            data_list_of_dict = df.to_dict('records')
+            # query = """INSERT INTO cdp_ad_daily (web_id,title,transaction,click,revenue,date) VALUES (:web_id,:title,:transcation,:click,:revenue,:date)"""
+            # MySqlHelper('cdp').ExecuteUpdate(text(query), data_list_of_dict)
+            query = """REPLACE INTO cdp_ad_daily (web_id,product_id,title,transaction,click,revenue,date) 
+                                          VALUES (:web_id,:product_id,:title,:transaction,:click,:revenue,:date)"""
+            print(query)
+            MySqlHelper('cdp').ExecuteUpdate(query, data_list_of_dict)
+            # MySqlHelper('cdp').ExecuteInsert('cdp_ad_daily', data_list_of_dict)
+            return df
+
+    @timing
+    def sqldate(self, web_id, date_start, date_end, use_daily=False, is_reformat_product_id=False):
+        if type(date_start) == datetime.datetime:
+            date_start = date_start.strftime('%Y-%m-%d')
+        if type(date_end) == datetime.datetime:
+            date_end = date_end.strftime('%Y-%m-%d')
+        if use_daily:
+            query = f"SELECT web_id, product_id, title, transaction, click, revenue, date FROM cdp_ad_daily where date BETWEEN '{date_start}' AND '{date_end}' AND web_id='{web_id}'"
+        else:
+            query = f"SELECT web_id, product_id, title, sum(transcation) as transaction, sum(click) as click, sum(revenue) as revenue, date FROM cdp_ad2 where date BETWEEN '{date_start}' AND '{date_end}' AND web_id='{web_id}' AND revenue>0 AND url!='_' group by title, date"
+        print(query)
+        data = MySqlHelper('cdp').ExecuteSelect(query)
+        data = list(set(data)) ## remove repetitive terms
+        if data == []:
+            return []
+        else:
+            self.df = self._date2count(data, date_start, is_reformat_product_id=is_reformat_product_id)
+            return self.df
+
+    ## date to number (1-365)
+    def _date2count(self, data_list, date_start, is_reformat_product_id=False):
+        results_list = []
+        date_list = [data[-1] for data in data_list]
+        date_list.sort()
+        # date_start = date_list[0]
+        # date_end = date_list[-1]
+        for data in data_list:
+            results_list += [list(data)]
+            date = results_list[-1][-1]
+            count = self._date_count(date, date_ref=date_start)
+            # results_list[-1][-1] = count
+            results_list[-1] += [count]
+        results_matrix = np.array(results_list)
+        df = pd.DataFrame(data=results_matrix, columns=['web_id', 'product_id', 'title', 'transaction', 'click', 'revenue', 'date', 'date_count'])
+        if is_reformat_product_id:
+            df_reformat = self._reformat_product_id(df)
+            return df_reformat
+        else:
+            return df
+
+
+    def _reformat_product_id(self, df):
+        data = np.array(df)
+        titles = list(set(df['title']))
+        dict_map = self.fetch_product_id_by_title(titles)
+        print(f"dict_map is {dict_map}")
+        data_dict = {}
+        for i, row in enumerate(data):
+            web_id, product_id, title, transaction, click, revenue, date, date_count = row
+            print(f"title is {title}")
+            ## update product_id
+            if title in dict_map:
+                product_id_new = dict_map[title]  # get product_id
+                print(f"found title in mapping dict, new product_id is {product_id_new}")
+            else:
+                product_id_new = '_'
+            data_dict[i] = {'web_id': web_id, 'product_id': product_id_new, 'title': title, 'transaction': transaction,
+                            'click': click, 'revenue': revenue, 'date': date, 'date_count': date_count}
+        df_reformat = pd.DataFrame.from_dict(data_dict, "index")
+        return df_reformat
+
+
+    def fetch_product_id_by_title(self, titles, ):
+        query = f"SELECT title, product_id FROM ecom_table WHERE title in ("
+        for i, title in enumerate(titles):
+            if title.find("'") != -1:  ## if find ' symbol => use "{title}"
+                query += f'"{title}", '
+            else:
+                query += f"'{title}', "
+                if i == len(titles) - 1:
+                    if title.find("'") != -1:  ## if find ' symbol => use "{title}"
+                        query += f'"{title}")'
+                    else:
+                        query += f"'{title}')"
+        print(query)
+        data = MySqlHelper('jupiter_new').ExecuteSelect(query)
+        dict_map = {}
+        for d in data:
+            dict_map[d[0]] = d[1]
+        return dict_map
 
     def ft_extrapolation(self, t, signal, day_predict=7, n_harm=None, fs=1, fig=False, xlabel='Day', ylabel='Revenue', detrend=True):
         n = len(signal)
@@ -68,8 +179,11 @@ class Ecom:
 
     def fetch_all_seq(self, web_id, date_start, date_end, use_daily=False):
         df = self.sqldate(web_id, date_start, date_end, use_daily=use_daily)
-        df_title = self.collect_df_title(df, date_start, date_end)
-        return df, df_title
+        if np.array(df).size == 0:
+            return [] ,[]
+        else:
+            df_title = self.collect_df_title(df, date_start, date_end)
+            return df, df_title
 
 
     def collect_df_title(self, df, date_start, date_end):
@@ -109,49 +223,6 @@ class Ecom:
         self.df = self._date2count(data)
         return self.df
 
-    @timing
-    def sqldate(self, web_id, date_start, date_end, use_daily=False):
-        if type(date_start) == datetime.datetime:
-            date_start = date_start.strftime('%Y-%m-%d')
-        if type(date_end) == datetime.datetime:
-            date_end = date_end.strftime('%Y-%m-%d')
-        if use_daily:
-            query = f"SELECT web_id, title, transaction, click, revenue, date FROM cdp_ad_daily where date BETWEEN '{date_start}' AND '{date_end}' AND web_id='{web_id}'"
-        else:
-            query = f"SELECT web_id, title, sum(transcation) as transaction, sum(click) as click, sum(revenue) as revenue, date FROM cdp_ad2 where date BETWEEN '{date_start}' AND '{date_end}' AND web_id='{web_id}' AND revenue>0 group by title, date"
-        data = MySqlHelper('cdp').ExecuteSelect(query)
-        # data = [list(d) for d in data]
-        data = list(set(data)) ## remove repetitive terms
-        if data == []:
-            return []
-        else:
-            self.df = self._date2count(data, date_start)
-            return self.df
-
-    @timing
-    def insert_daily_report(self, web_id, mode_insert='all', date_start=None):
-        date_yesterday = self._get_yesterday()
-        if mode_insert == 'all':
-            df = self.sqldate(web_id, self.date_min, date_yesterday)
-        elif mode_insert == 'one':
-            df = self.sqldate(web_id, date_start, date_start)
-        elif mode_insert == 'assign':
-            df = self.sqldate(web_id, date_start, date_yesterday)
-        elif mode_insert == 'yesterday':
-            df = self.sqldate(web_id, date_yesterday, date_yesterday)
-
-        if np.array(df).size == 0:
-            print('data is empty')
-            return []
-        else:
-            ## remove useless column
-            df = df.drop(columns=['date_count'])
-            # df = df.rename(columns={'transcation':'transaction'}) ## fix typing error in cdp_ad2
-            data_list_of_dict = df.to_dict('records')
-            # query = """INSERT INTO cdp_ad_daily (web_id,title,transaction,click,revenue,date) VALUES (:web_id,:title,:transcation,:click,:revenue,:date)"""
-            # MySqlHelper('cdp').ExecuteUpdate(text(query), data_list_of_dict)
-            MySqlHelper('cdp').ExecuteInsert('cdp_ad_daily', data_list_of_dict)
-            return df
 
     @timing
     def fetch_hot(self, web_id, date_start, date_end, n_item=10):
@@ -161,17 +232,20 @@ class Ecom:
         return titles
 
     @timing
-    def fetch_all_web_id(self, date_start, date_end=None, use_daily=False):
-        if date_end == None:
-            date_end = self._get_yesterday()
-        # query = f"-- SELECT web_id, title, sum(transcation) as transcation, sum(click) as click, sum(revenue) as revenue, date FROM cdp_ad2 where date BETWEEN '{date_start}' AND '{date_end}' AND revenue>0 group by title, date"
-        # query = f"-- SELECT web_id, sum(revenue) as revenue FROM cdp_ad2 where date BETWEEN '{date_start}' AND '{date_end}' AND revenue>0 group by web_id, date"
-        if use_daily:
-            query = f"SELECT web_id, date FROM cdp_ad_daily where date BETWEEN '{date_start}' AND '{date_end}'"
-        else:
-            query = f"SELECT web_id, date FROM cdp_ad2 where date BETWEEN '{date_start}' AND '{date_end}' AND revenue>0 group by web_id, date"
+    def fetch_all_web_id(self):
+        query = f"SELECT web_id FROM cdp_management_table"
         data =MySqlHelper('cdp').ExecuteSelect(query)
         web_id_all = list(set([d[0] for d in data]))
+        # if date_end == None:
+        #     date_end = self._get_yesterday()
+        # # query = f"-- SELECT web_id, title, sum(transcation) as transcation, sum(click) as click, sum(revenue) as revenue, date FROM cdp_ad2 where date BETWEEN '{date_start}' AND '{date_end}' AND revenue>0 group by title, date"
+        # # query = f"-- SELECT web_id, sum(revenue) as revenue FROM cdp_ad2 where date BETWEEN '{date_start}' AND '{date_end}' AND revenue>0 group by web_id, date"
+        # if use_daily:
+        #     query = f"SELECT web_id, date FROM cdp_ad_daily where date BETWEEN '{date_start}' AND '{date_end}'"
+        # else:
+        #     query = f"SELECT web_id, date FROM cdp_ad2 where date BETWEEN '{date_start}' AND '{date_end}' AND revenue>0 group by web_id, date"
+        # data =MySqlHelper('cdp').ExecuteSelect(query)
+        # web_id_all = list(set([d[0] for d in data]))
 
         # data = MySqlHelper('cdp').ExecuteSelect(
         #     f"SELECT distinct web_id FROM cdp_ad2 where date BETWEEN '{date_start}' AND '{date_end}'")
@@ -208,22 +282,7 @@ class Ecom:
         revenues_pad = np.array(revenues_full, dtype=object).astype('int')
         return days_pad, revenues_pad
 
-    ## date to number (1-365)
-    def _date2count(self, data_list, date_start):
-        results_list = []
-        date_list = [data[-1] for data in data_list]
-        date_list.sort()
-        # date_start = date_list[0]
-        # date_end = date_list[-1]
-        for data in data_list:
-            results_list += [list(data)]
-            date = results_list[-1][-1]
-            count = self._date_count(date, date_ref=date_start)
-            # results_list[-1][-1] = count
-            results_list[-1] += [count]
-        results_matrix = np.array(results_list)
-        df = pd.DataFrame(data=results_matrix, columns=['web_id', 'title', 'transaction', 'click', 'revenue', 'date', 'date_count'])
-        return df
+
 
 
     def _day_month(self, date):
@@ -243,9 +302,9 @@ class Ecom:
         :param date: string, datetime or int year datatype
         :return: How many days in that year
         '''
-        date = self._to_datetime(date)
+        date = to_datetime(date)
         if type(date) == int:
-            date = self._to_datetime(f'{date}-01-01')
+            date = to_datetime(f'{date}-01-01')
         year = date.year
         d = self._date_count(f'{year}-12-31') - self._date_count(f'{year}-01-01')
         return d
@@ -255,13 +314,13 @@ class Ecom:
         :param date: string or datetime datatype
         :return: x-nd day of date
         '''
-        date = self._to_datetime(date)
+        date = to_datetime(date)
         year = date.year
         count = 0
         if date_ref == None:
             ref_add = 0
         else:
-            date_ref = self._to_datetime(date_ref)
+            date_ref = to_datetime(date_ref)
             year_range = list(range(date_ref.year, year, 1))
             ref_add = sum([self._day_year(year)+1 for year in year_range]) - self._date_count(date_ref)+1
         for i in range(date.month - 1):
@@ -270,18 +329,22 @@ class Ecom:
         count += date.day + ref_add
         return count
 
-    def _to_datetime(self, date):
-        if type(date) == str:
-            date = datetime.datetime.strptime(date, '%Y-%m-%d')
-        return date
 
-    def _get_yesterday(self):
-        today = datetime.datetime.today()
-        yesterday = today - datetime.timedelta(days=1,hours=today.hour,minutes=today.minute,seconds=today.second,microseconds=today.microsecond)
-        return yesterday
 
-    def _get_today(self):
-        today = datetime.datetime.today()
-        today_zero = today - datetime.timedelta(days=0,hours=today.hour,minutes=today.minute,seconds=today.second,microseconds=today.microsecond)
-        return today_zero
 
+
+if __name__ == '__main__':
+    ecom = Ecom()
+    date_yesterday = 'ecom._get_yesterday()'
+    web_id = 'i3fresh'
+    date_start = '2021-11-11'
+    date_end = '2021-11-11'
+    # df = ecom.sqldate_withid(web_id, date_start, date_end, use_daily=False)
+    df = ecom.insert_daily_report(web_id, mode_insert='one', date_start=date_start)
+
+    data_list_of_dict = df.to_dict('records')
+    # query = """INSERT INTO cdp_ad_daily (web_id,title,transaction,click,revenue,date) VALUES (:web_id,:title,:transcation,:click,:revenue,:date)"""
+    # MySqlHelper('cdp').ExecuteUpdate(text(query), data_list_of_dict)
+    query = f"REPLACE INTO cdp.cdp_ad_daily (web_id,product_id,title,transaction,click,revenue,date) VALUES (:web_id,:product_id,:title,:transaction,:click,:revenue,:date)"
+    print(query)
+    MySqlHelper('cdp').ExecuteUpdate(query, data_list_of_dict)
