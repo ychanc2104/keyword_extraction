@@ -68,6 +68,18 @@ def update_cross_keywords(date_int):
     MySqlHelper('dione', is_ssh=False).ExecuteUpdate(query, hot_keyword_list_dict)
     return df_hot_keyword
 
+def save_trend_table(df_hot_keyword, hour):
+    hot_keyword_list_dict = df_hot_keyword.to_dict('records')
+    data_trend = {}
+    for i,data in enumerate(hot_keyword_list_dict):
+        data_trend[i] = {'web_id':'crossHot', 'keyword':data['keyword'], 'pageviews':data['pageviews'],
+                        'date':data['date'], 'hour':hour}
+    df_trend = pd.DataFrame.from_dict(data_trend, "index")
+    query = MySqlHelper.generate_update_SQLquery(df_trend, 'missoner_keyword_trend')
+    trend_list_dict = df_trend.to_dict('records')
+    MySqlHelper('dione', is_ssh=False).ExecuteUpdate(query, trend_list_dict)
+    return df_trend
+
 
 
 ## update cross-web_id popular keyword statistics every hour
@@ -75,8 +87,10 @@ if __name__ == '__main__':
     ## set is in UTC+0 or UTC+8
     is_UTC0 = True
     # df_hot_keyword = fetch_cross_hot_keyword(date_int=20211103)
-    df_hot_keyword = update_cross_keywords(date_int=20211102)
+    df_hot_keyword = update_cross_keywords(date_int=20211101)
     # hot_keyword_list_dict = df_hot_keyword.to_dict('records')
+    df_trend = save_trend_table(df_hot_keyword, 15)
+
     # query = """
     #         REPLACE INTO missoner_keyword_crossHot
     #         (keyword, pageviews, external_source_count, internal_source_count, landings, exits, bounce, timeOnPage, date)
