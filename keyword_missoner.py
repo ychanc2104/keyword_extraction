@@ -13,7 +13,7 @@ from db.mysqlhelper import MySqlHelper
 from media.Media import Media
 from basic.date import get_hour, date2int, get_today, get_yesterday, check_is_UTC0
 from keyword_cross_hot import update_cross_keywords, save_trend_table
-
+from keyword_missoner_trend import update_keyword_trend
 
 def clean_keyword_list(keyword_list, stopwords, stopwords_missoner):
     keyword_list = Composer_jieba().clean_keyword(keyword_list, stopwords)  ## remove stopwords
@@ -90,6 +90,43 @@ def fetch_hot_articles(web_id, n=50, date=None, is_UTC0=False): # default get to
     df_hot = pd.DataFrame(data=data, columns=columns)
     return df_hot
 
+## cut keyword list if keywords is empty
+def generate_keyword_list(row, jieba_base, stopwords, stopwords_missoner):
+    ## process keyword ##
+    keywords = row['keywords']
+    news = row['title'] + ' ' + row['content']
+    news_clean = jieba_base.filter_str(news, pattern="https:\/\/([0-9a-zA-Z.\/]*)")  ## pattern for https
+    news_clean = jieba_base.filter_symbol(news_clean)
+    if (keywords == '') | (keywords == '_'):
+        keyword_list = jieba.analyse.extract_tags(news_clean, topK=8)
+        keyword_list = clean_keyword_list(keyword_list, stopwords, stopwords_missoner)
+        keywords = ','.join(keyword_list)  ## add keywords
+        is_cut = 1
+    else:
+        keyword_list = [k.strip() for k in keywords.split(',')]
+        keyword_list = clean_keyword_list(keyword_list, stopwords, stopwords_missoner)
+        is_cut = 0
+    return keywords, keyword_list, is_cut
+
+## compute pageviews by external and internal sources
+def collect_pageviews_by_source(keyword_dict, keyword, row, source_domain_mapping, params, is_cut):
+    ## save each keyword from a article ##
+    if keyword not in keyword_dict.keys():
+        ## process internal and external source loop and save to popular keyword dict
+        if row['source_domain'] in source_domain_mapping:  # internal case
+            keyword_dict[keyword] = np.append(params, [0, row['pageviews'], is_cut])
+        else:  # external case
+            keyword_dict[keyword] = np.append(params, [row['pageviews'], 0, is_cut])
+    else:
+        ## process internal and external source loop and add to popular keyword dict
+        if row['source_domain'] in source_domain_mapping:  # internal case
+            ## add to internal source count
+            keyword_dict[keyword][:-1] += np.append(params, [0, row['pageviews']])
+        else:  # external case
+            ## add to external source count
+            keyword_dict[keyword][:-1] += np.append(params, [row['pageviews'], 0])
+    return keyword_dict
+
 ## main, process one day if assign date, default is today
 @timing
 def build_keyword_article(date=None, is_UTC0=False, n=10000):
@@ -118,47 +155,50 @@ def build_keyword_article(date=None, is_UTC0=False, n=10000):
         i = 0
         keyword_dict = {}
         for index, row in df_hot.iterrows():
-            ## process keyword ##
-            keywords = row['keywords']
-            news = row['title'] + ' ' + row['content']
-            news_clean = jieba_base.filter_str(news, pattern="https:\/\/([0-9a-zA-Z.\/]*)")  ## pattern for https
-            news_clean = jieba_base.filter_symbol(news_clean)
-            if (keywords == '') | (keywords == '_'):
-                keyword_list = jieba.analyse.extract_tags(news_clean, topK=8)
-                keyword_list = clean_keyword_list(keyword_list, stopwords, stopwords_missoner)
-                keywords = ','.join(keyword_list)  ## add keywords
-                is_cut = 1
-            else:
-                keyword_list = [k.strip() for k in keywords.split(',')]
-                keyword_list = clean_keyword_list(keyword_list, stopwords, stopwords_missoner)
-                is_cut = 0
+            # ## process keyword ##
+            # keywords = row['keywords']
+            # news = row['title'] + ' ' + row['content']
+            # news_clean = jieba_base.filter_str(news, pattern="https:\/\/([0-9a-zA-Z.\/]*)")  ## pattern for https
+            # news_clean = jieba_base.filter_symbol(news_clean)
+            # if (keywords == '') | (keywords == '_'):
+            #     keyword_list = jieba.analyse.extract_tags(news_clean, topK=8)
+            #     keyword_list = clean_keyword_list(keyword_list, stopwords, stopwords_missoner)
+            #     keywords = ','.join(keyword_list)  ## add keywords
+            #     is_cut = 1
+            # else:
+            #     keyword_list = [k.strip() for k in keywords.split(',')]
+            #     keyword_list = clean_keyword_list(keyword_list, stopwords, stopwords_missoner)
+            #     is_cut = 0
+            keywords, keyword_list, is_cut = generate_keyword_list(row, jieba_base, stopwords, stopwords_missoner)
             params = np.array(row[['pageviews', 'landings', 'exits', 'bounce', 'timeOnPage']]).astype('int')
-            ## build dictionary loop ##
+            ## separate keyword_list to build dictionary ##
             for keyword in keyword_list:
-                ## keyword and articles mapping
+                ## keyword and articles mapping, for table, missoner_keyword_article
                 dict_keyword_article[i] = {'web_id': web_id, 'article_id': row['article_id'], 'keyword': keyword, 'is_cut': is_cut}
                 i += 1
-                ## save each keyword from a article ##
-                if keyword not in keyword_dict.keys():
-                    ## process internal and external source loop and save to popular keyword dict
-                    if row['source_domain'] in source_domain_mapping: # internal case
-                        keyword_dict[keyword] = np.append(params, [0, row['pageviews'], is_cut])
-                    else: # external case
-                        keyword_dict[keyword] = np.append(params, [row['pageviews'], 0, is_cut])
-                else:
-                    ## process internal and external source loop and add to popular keyword dict
-                    if row['source_domain'] in source_domain_mapping: # internal case
-                        ## add to internal source count
-                        keyword_dict[keyword][:-1] += np.append(params, [0, row['pageviews']])
-                    else: # external case
-                        ## add to external source count
-                        keyword_dict[keyword][:-1] += np.append(params, [row['pageviews'], 0])
+                ## compute pageviews by external and internal sources, for table, missoner_keyword
+                keyword_dict = collect_pageviews_by_source(keyword_dict, keyword, row, source_domain_mapping, params, is_cut)
+                #
+                # ## save each keyword from a article ##
+                # if keyword not in keyword_dict.keys():
+                #     ## process internal and external source loop and save to popular keyword dict
+                #     if row['source_domain'] in source_domain_mapping: # internal case
+                #         keyword_dict[keyword] = np.append(params, [0, row['pageviews'], is_cut])
+                #     else: # external case
+                #         keyword_dict[keyword] = np.append(params, [row['pageviews'], 0, is_cut])
+                # else:
+                #     ## process internal and external source loop and add to popular keyword dict
+                #     if row['source_domain'] in source_domain_mapping: # internal case
+                #         ## add to internal source count
+                #         keyword_dict[keyword][:-1] += np.append(params, [0, row['pageviews']])
+                #     else: # external case
+                #         ## add to external source count
+                #         keyword_dict[keyword][:-1] += np.append(params, [row['pageviews'], 0])
             print(f"index: {index}, keywords: {keywords}")
         date = date_int
-        if date==date2int(get_today(is_UTC0=is_UTC0)): ## routine
-            hour = get_hour(is_UTC0=is_UTC0)
-        else: ## compensate for leaking data
-            hour = 23
+        hour = get_hour(is_UTC0=is_UTC0)
+
+        ## build dict for building DataFrame
         data_save, data_trend = {}, {}
         i = 0
         for key, value in keyword_dict.items():
@@ -173,34 +213,40 @@ def build_keyword_article(date=None, is_UTC0=False, n=10000):
         ## select enough number of keywords
         pageviews_array = np.array(df_keyword['pageviews']).astype('int')
         mean_pageviews = np.mean(pageviews_array)
-        df_select = df_keyword.query(f"pageviews > {mean_pageviews}")
+        df_keyword = df_keyword.query(f"pageviews > {mean_pageviews}")
 
         ## save keyword statistics to table: missoner_keyword
-        df_select_list_dict = df_select.to_dict('records')
-        query = """
-        REPLACE INTO missoner_keyword 
-        (web_id, keyword, pageviews, landings, exits, bounce, timeOnPage, external_source_count, internal_source_count, is_cut, date)
-        VALUES 
-        (:web_id, :keyword, :pageviews, :landings, :exits, :bounce, :timeOnPage, :external_source_count, :internal_source_count, :is_cut, :date)
-        """
-        MySqlHelper('dione', is_ssh=False).ExecuteUpdate(query, df_select_list_dict)
-        ## save keywords <=> articles mapping, tabel: missoner_keyword_article
-        df_map = pd.DataFrame.from_dict(dict_keyword_article, "index")
-        df_map_list_dict = df_map.to_dict('records')
-        query = "REPLACE INTO missoner_keyword_article (web_id, article_id, keyword, is_cut) VALUES (:web_id, :article_id, :keyword, :is_cut)"
-        MySqlHelper('dione', is_ssh=False).ExecuteUpdate(query, df_map_list_dict)
-        ## save cross hot keywords, tabel: missoner_keyword_crossHot
-        df_hot_keyword = update_cross_keywords(date_int=date)
+        keyword_list_dict = df_keyword.to_dict('records')
+        query_keyword = MySqlHelper.generate_update_SQLquery(df_keyword, 'missoner_keyword')
 
-        ## save keyword statistics to table: missoner_keyword_trend
-        # by web_id
-        df_keyword_trend = pd.DataFrame.from_dict(data_trend, "index")
-        keyword_trend_list_dict = df_keyword_trend.to_dict('records')
-        query_trend = MySqlHelper.generate_update_SQLquery(df_keyword_trend, 'missoner_keyword_trend')
-        MySqlHelper('dione', is_ssh=False).ExecuteUpdate(query_trend, keyword_trend_list_dict)
+        MySqlHelper('dione', is_ssh=False).ExecuteUpdate(query_keyword, keyword_list_dict)
+        ## save keywords <=> articles mapping, tabel: missoner_keyword_article
+        df_keyword_article = pd.DataFrame.from_dict(dict_keyword_article, "index")
+        keyword_article_list_dict = df_keyword_article.to_dict('records')
+        query_keyword_article = MySqlHelper.generate_update_SQLquery(df_keyword_article, 'missoner_keyword_article')
+        # query = "REPLACE INTO missoner_keyword_article (web_id, article_id, keyword, is_cut) VALUES (:web_id, :article_id, :keyword, :is_cut)"
+        MySqlHelper('dione', is_ssh=False).ExecuteUpdate(query_keyword_article, keyword_article_list_dict)
+
+        ## save cross hot keywords for each web_id, tabel: missoner_keyword_crossHot
+        if date==date2int(get_today(is_UTC0=is_UTC0)): ## routine, update trend
+            ## save keyword statistics to the same table: missoner_keyword_trend
+            # by web_id
+            df_keyword_trend = pd.DataFrame.from_dict(data_trend, "index")
+            keyword_trend_list_dict = df_keyword_trend.to_dict('records')
+            query_trend = MySqlHelper.generate_update_SQLquery(df_keyword_trend, 'missoner_keyword_trend')
+            MySqlHelper('dione', is_ssh=False).ExecuteUpdate(query_trend, keyword_trend_list_dict)
+        else:
+            df_keyword_trend = {}
+
+    ## save cross hot keywords, tabel: missoner_keyword_crossHot (compute after all web_id ran)
+    df_keyword_crossHot = update_cross_keywords(date_int=date)
+    if date==date2int(get_today(is_UTC0=is_UTC0)): ## routine, update trend
+        ## save keyword statistics to the same table: missoner_keyword_trend
         # cross hot
-        df_keyword_trend_crossHot = save_trend_table(df_hot_keyword, hour=hour)
-    return df_select, df_map, df_hot_keyword, df_keyword_trend, df_keyword_trend_crossHot
+        df_keyword_trend_crossHot = save_trend_table(df_keyword_crossHot, hour=hour)
+    else:
+        df_keyword_trend_crossHot = {}
+    return df_keyword, df_keyword_article, df_keyword_crossHot, df_keyword_trend, df_keyword_trend_crossHot
 
 
 ## analyze data yesterday, insert two tables, missoner_keyword and missoner_keyword_article
@@ -212,15 +258,20 @@ if __name__ == '__main__':
     hour_now = get_hour(is_UTC0=is_UTC0)
     if (hour_now == 3):
         ## routine
+        # update four tables, missoner_keyword, missoner_keyword_article, missoner_keyword_crossHot, missoner_keyword_trend
         df_select, df_map, df_hot_keyword, df_keyword_trend, df_keyword_trend_crossHot = build_keyword_article(date=date, n=5000, is_UTC0=is_UTC0)
+        # update trend in missoner_keyword_trend
+        df_trend = update_keyword_trend()
         print(f'routine to update every hour, hour: {hour_now}')
         yesterday = get_yesterday(is_UTC0=is_UTC0)
         ## cal at 0,1,2 to confirm data is complete
         df_select_y, df_map_y, df_hot_keyword_y, df_keyword_trend_y, df_keyword_trend_crossHot_y = build_keyword_article(date=yesterday, n=50000, is_UTC0=is_UTC0)
         print(f"in 3:00 (UTC+8), update yesterday all browse record")
-        # print(f"in time range between 0 and 2 (UTC+8), update yesterday all twice(at 0, 1 and 2 o'clock)")
     else:
+        # update four tables, missoner_keyword, missoner_keyword_article, missoner_keyword_crossHot, missoner_keyword_trend
         df_select, df_map, df_hot_keyword, df_keyword_trend, df_keyword_trend_crossHot = build_keyword_article(date=date, n=5000, is_UTC0=is_UTC0)
+        # update trend in missoner_keyword_trend
+        df_trend = update_keyword_trend()
         print(f'routine to update every hour, hour: {hour_now}')
 
     t_end = time.time()
