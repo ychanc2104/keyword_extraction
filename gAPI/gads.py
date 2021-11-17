@@ -52,6 +52,54 @@ class GoogleAds:
         high_price = keyword_idea.keyword_idea_metrics.high_top_of_page_bid_micros / 1000000
         return low_price, high_price
 
+    def get_keyword_list_monthly_info(self, keyword_list):
+        client = self.client
+        location_ids = self.location_ids
+        language_id = self.language_id
+        customer_id = self.customer_id
+
+        keyword_plan_idea_service = client.get_service("KeywordPlanIdeaService")
+        keyword_competition_level_enum = (client.enums.KeywordPlanCompetitionLevelEnum)
+        keyword_plan_network = (client.enums.KeywordPlanNetworkEnum.GOOGLE_SEARCH_AND_PARTNERS)
+        location_rns = self._map_locations_ids_to_resource_names(client, location_ids)
+        language_rn = client.get_service("LanguageConstantService").language_constant_path(language_id)
+        # Only one of the fields "url_seed", "keyword_seed", or
+        # "keyword_and_url_seed" can be set on the request, depending on whether
+        # keywords, a page_url or both were passed to this function.
+        request = client.get_type("GenerateKeywordIdeasRequest")
+        request.customer_id = customer_id
+        request.language = language_rn
+        request.geo_target_constants = location_rns
+        request.include_adult_keywords = False
+        request.keyword_plan_network = keyword_plan_network
+        request.keyword_seed.keywords.extend(keyword_list)
+
+        keyword_ideas = keyword_plan_idea_service.generate_keyword_ideas(request=request)
+        keywords_info = {}
+        i = 0
+        keyword_list_noblank = [keyword.replace(' ','') for keyword in keyword_list]
+        for idea in keyword_ideas:
+            idea_join = idea.text.replace(' ','')
+            if idea_join in keyword_list_noblank:
+
+                index = keyword_list_noblank.index(idea_join)
+                competition_level = idea.keyword_idea_metrics.competition.name
+                competition_value = idea.keyword_idea_metrics.competition.value
+                low_price = idea.keyword_idea_metrics.low_top_of_page_bid_micros / 1000000
+                high_price = idea.keyword_idea_metrics.high_top_of_page_bid_micros / 1000000
+                avg_monthly_traffic = idea.keyword_idea_metrics.avg_monthly_searches
+                year_list, month_list, monthly_traffic_list = self._parse_monthly_search_volumes(idea)
+                for year, month, monthly_traffic in zip(year_list, month_list, monthly_traffic_list):
+                    date=f"{year}-{month}-01"
+                    keywords_info[i] = {'keyword_ask': keyword_list[index], 'keyword_join': idea_join, 'keyword_google': idea.text,
+                                        'competition_level': competition_level, 'competition_value': competition_value,
+                                        'low_price': low_price, 'high_price': high_price, 'monthly_traffic': monthly_traffic,
+                                        'avg_monthly_traffic': avg_monthly_traffic, 'year':year, 'month':month, 'date': date}
+                    i += 1
+        self.idea = idea
+        df = pd.DataFrame.from_dict(keywords_info, "index")
+        return df
+
     def get_keyword_list_info(self, keyword_list):
         client = self.client
         location_ids = self.location_ids
@@ -158,7 +206,29 @@ class GoogleAds:
         build_resource_name = client.get_service("GeoTargetConstantService").geo_target_constant_path
         return [build_resource_name(location_id) for location_id in location_ids]
 
+
+    def _parse_monthly_search_volumes(self, idea):
+        year_list, month_list, monthly_searches_list = [], [], []
+        monthly_search_volumes = idea.keyword_idea_metrics.monthly_search_volumes
+        for search in monthly_search_volumes:
+            year_list += [search.year]
+            month_list += [search.month.value - 1] ## raw is 2-13
+            monthly_searches_list += [search.monthly_searches]
+        return year_list, month_list, monthly_searches_list
+
+
 if __name__ == "__main__":
 
     gad = GoogleAds()
-    df = gad.get_keyword_info('湖人')
+    # df = gad.get_keyword_info('湖人')
+    df2 = gad.get_keyword_list_monthly_info(['iphone', '空壓殼'])
+
+
+    # idea = gad.idea
+    # year_list, month_list, monthly_searches_list = gad._parse_monthly_search_volumes(idea)
+    # df = gad.get_keyword_list_monthly_info(['iphone'])
+    # keyword_idea_metrics = gad.idea.keyword_idea_metrics
+    # monthly_search_volumes = keyword_idea_metrics.monthly_search_volumes
+    # year = monthly_search_volumes[0].year
+    # month = monthly_search_volumes[0].month.value
+    # monthly_searches = monthly_search_volumes[0].monthly_searches

@@ -12,6 +12,7 @@ def fetch_SEO_siteUrl_web_id():
     sitUrl_all = [d[1] for d in data]
     return web_id_all, sitUrl_all
 
+## update google_ads_metrics, google_search_console_query, google_search_console_device, google_search_console_page
 if __name__ == '__main__':
     ## setup parameters
     # siteUrl = 'https://www.nanooneshop.com/' ## web_id = 'nanooneshop'
@@ -20,5 +21,5 @@ if __name__ == '__main__':
     web_id_all, sitUrl_all = fetch_SEO_siteUrl_web_id()
     g_search = GoogleSearchConsole()
     for web_id, siteUrl in zip(web_id_all, sitUrl_all):
-        g_search.update_4db(web_id, siteUrl, path_ads_config='./gAPI/google-ads.yaml')
+        g_search.update_3db(web_id, siteUrl, path_ads_config='./gAPI/google-ads.yaml')
 

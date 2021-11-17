@@ -10,11 +10,11 @@ from basic.date import to_datetime, get_date_shift, get_today, datetime_to_str
 
 class GoogleSearchConsole(GoogleOAuth2):
 
-    def update_4db(self, web_id, siteUrl, path_ads_config='google-ads.yaml'):
+    def update_3db(self, web_id, siteUrl, path_ads_config='google-ads.yaml'):
         date_start = datetime_to_str(get_date_shift(days=3))
         date_end = datetime_to_str(get_today())
         print(f"update from {date_start} to {date_end}")
-        self.save_to_query_ads_table(web_id, date_start, date_end, siteUrl, path_ads_config=path_ads_config)
+        self.save_to_query_table(web_id, date_start, date_end, siteUrl, path_ads_config=path_ads_config)
         self.save_to_page_table(web_id, date_start, date_end, siteUrl)
         self.save_to_device_table(web_id, date_start, date_end, siteUrl)
 
@@ -28,13 +28,13 @@ class GoogleSearchConsole(GoogleOAuth2):
             date_start = datetime_to_str(date_range_list[i])
             date_end = datetime_to_str(date_range_list[i+1])
             print(f"update date range from {date_start} to {date_end}...")
-            self.save_to_query_ads_table(web_id, date_start, date_end, siteUrl, path_ads_config=path_ads_config)
+            self.save_to_query_table(web_id, date_start, date_end, siteUrl, path_ads_config=path_ads_config)
             self.save_to_page_table(web_id, date_start, date_end, siteUrl)
             self.save_to_device_table(web_id, date_start, date_end, siteUrl)
 
 
     ## save to query table and
-    def save_to_query_ads_table(self, web_id, date_start, date_end, siteUrl, rowLimit=25000, path_ads_config='google-ads.yaml'):
+    def save_to_query_table(self, web_id, date_start, date_end, siteUrl, rowLimit=25000, path_ads_config='google-ads.yaml'):
         df_search_console_query = self.fetch_search_console(web_id, date_start, date_end, siteUrl,
                                                      rowLimit=rowLimit, dimensions=['query', 'date', 'country', 'device'])
         search_console_query_list_dict = df_search_console_query.to_dict('records')
@@ -42,18 +42,18 @@ class GoogleSearchConsole(GoogleOAuth2):
         print(query_q)
         MySqlHelper('roas_report').ExecuteUpdate(query_q, search_console_query_list_dict)
 
-        keyword_list = list(set(df_search_console_query['query']))
-        df_keywords_metrics = self._generate_keyword_metrics(keyword_list, path_ads_config)
-        keywords_metrics_list_dict = df_keywords_metrics.to_dict('records')
-        query_ads = "REPLACE INTO google_ads_metrics " \
-                    "(keyword_join, keyword_ask, keyword_google, low_price, high_price, avg_monthly_traffic, " \
-                    "competition_level, competition_value, date) VALUES " \
-                    "(:keyword_join, :keyword_ask, :keyword_google, :low_price, :high_price, :avg_monthly_traffic, " \
-                    ":competition_level, :competition_value, :date)"
-        print(query_ads)
-        MySqlHelper('roas_report').ExecuteUpdate(query_ads, keywords_metrics_list_dict)
+        # keyword_list = list(set(df_search_console_query['query']))
+        # df_keywords_metrics = self._generate_keyword_metrics(keyword_list, path_ads_config)
+        # keywords_metrics_list_dict = df_keywords_metrics.to_dict('records')
+        # query_ads = "REPLACE INTO google_ads_metrics " \
+        #             "(keyword_join, keyword_ask, keyword_google, low_price, high_price, avg_monthly_traffic, " \
+        #             "competition_level, competition_value, date) VALUES " \
+        #             "(:keyword_join, :keyword_ask, :keyword_google, :low_price, :high_price, :avg_monthly_traffic, " \
+        #             ":competition_level, :competition_value, :date)"
+        # print(query_ads)
+        # MySqlHelper('roas_report').ExecuteUpdate(query_ads, keywords_metrics_list_dict)
 
-        return df_search_console_query, df_keywords_metrics
+        return df_search_console_query
 
     def save_to_page_table(self, web_id, date_start, date_end, siteUrl, rowLimit=25000):
         df_search_console_page = self.fetch_search_console(web_id, date_start, date_end, siteUrl, rowLimit=rowLimit, dimensions=['page', 'date'])
@@ -110,6 +110,17 @@ class GoogleSearchConsole(GoogleOAuth2):
             df_keywords_metrics = df_keywords_metrics.append(google_ad.get_keyword_list_info(keyword_list_sub))
         return df_keywords_metrics
 
+    def _generate_12month_keyword_metrics(self, keyword_list, path_ads_config):
+        n_keyword = len(keyword_list)
+        indexes = np.append(np.arange(0, n_keyword, 20), n_keyword)
+        google_ad = GoogleAds(path_ads_config=path_ads_config)
+        df_keywords_metrics = pd.DataFrame()
+        for i in range(len(indexes)-1):
+            keyword_list_sub = keyword_list[indexes[i]: indexes[i+1]]
+            print(f"saving query table..., keyword size is {n_keyword}, select index between {indexes[i]} and {indexes[i+1]}")
+            df_keywords_metrics = df_keywords_metrics.append(google_ad.get_keyword_list_monthly_info(keyword_list_sub))
+        return df_keywords_metrics
+
     def groupby_dim(self, df, dim=['']):
         df_group = df.groupby(dim).sum()
         clicks = sum(df_group['clicks'])
@@ -125,22 +136,30 @@ if __name__ == '__main__':
     # property_uri = 'https://www.ehaostore.com/' ## web_id = 'ehaostore'
     # property_uri = 'https://i3fresh.tw/' ## web_id = 'i3fresh'
     ## set up parameters
-    siteUrl = 'https://www.nanooneshop.com/' ## web_id = 'nanooneshop'
-    web_id = 'nanooneshop'
-    date_start = '2021-11-05'
-    date_end = '2021-11-10'
+    # siteUrl = 'https://www.nanooneshop.com/' ## web_id = 'nanooneshop'
+    # web_id = 'nanooneshop'
+    # date_start = '2021-11-05'
+    # date_end = '2021-11-10'
+    #
+    # SCOPES = ['https://www.googleapis.com/auth/webmasters.readonly']
+    # CLIENT_SECRETS_PATH = 'client_secrets.json' ## use likrrobot@avividai.com
+    # CLIENT_SECRETS_PATH = os.path.join(os.path.dirname(__file__), CLIENT_SECRETS_PATH)
+    #
+    # g_search = GoogleSearchConsole()
+    # g_search.update_4db(web_id, siteUrl)
 
-    SCOPES = ['https://www.googleapis.com/auth/webmasters.readonly']
-    CLIENT_SECRETS_PATH = 'client_secrets.json' ## use likrrobot@avividai.com
-    CLIENT_SECRETS_PATH = os.path.join(os.path.dirname(__file__), CLIENT_SECRETS_PATH)
+    keyword_list = ['iphone', '空壓殼']
+    # df_monthly_keyword_metrics = GoogleSearchConsole()._generate_keyword_metrics(keyword_list,
+    #                                                                              path_ads_config='../gAPI/google-ads.yaml')
+    #
+    # df2 = GoogleAds(path_ads_config='../gAPI/google-ads.yaml').get_keyword_list_info(keyword_list)
 
-    g_search = GoogleSearchConsole()
-    g_search.update_4db(web_id, siteUrl)
+    df_monthly_keyword_metrics = GoogleSearchConsole()._generate_12month_keyword_metrics(keyword_list,
+                                                                                 path_ads_config='../gAPI/google-ads.yaml')
 
     # query = "SELECT web_id FROM dione.web_id_table where missoner_keyword_enable=1"
     # print(query)
     # data = MySqlHelper('RDS').ExecuteSelect(query)
-
 
     # df_search_console_query, df_keywords_metrics = g_search.save_to_query_ads_table(web_id, date_start, date_end, siteUrl)
     # df_search_console_page = g_search.save_to_page_table(web_id, date_start, date_end, siteUrl)
