@@ -3,7 +3,7 @@ from gensim_compose.embedding import Composer
 from keyword_missoner import fetch_missoner_web_id
 from db.mysqlhelper import MySqlHelper
 from strsimpy.damerau import Damerau
-from basic.date import get_hour, date2int, get_today, get_yesterday, get_date_shift, datetime_to_str
+from basic.date import get_hour, date2int, get_today, get_yesterday, get_date_shift, datetime_to_str, check_is_UTC0
 import pandas as pd
 from media.Media import Media
 import numpy as np
@@ -32,7 +32,7 @@ def fetch_keywords_2day(web_id, is_UTC0=False):
 @timing
 def fetch_keywords(web_id, date):
     date_int = date2int(date)
-    query = f"SELECT keyword FROM missoner_keyword WHERE web_id='{web_id}' and date={date_int}"
+    query = f"SELECT keyword FROM missoner_keyword WHERE web_id='{web_id}' and date={date_int} and pageviews>10 order by pageviews desc limit 1000"
     print(query)
     data = MySqlHelper('dione').ExecuteSelect(query)
     keywords = [d[0] for d in data]
@@ -61,7 +61,7 @@ def insert_keyword_similarity(date):
             score_row = weight*similarity_row - damerau_row/n_keyword ## add similarity and damerau, bigger is more similar
             index = np.argsort(score_row)[::-1] ## order ASC
             score_row_sort = np.sort(score_row)[::-1] ## order ASC
-            index_select = index[score_row_sort > 0] ## filter out score < 0
+            index_select = index[score_row_sort > 0.09] ## filter out score < 0
             # keyword_related = keywords[index_select][1:11] ## remove self and choose top10
             # scores = score_row[index_select][1:11]
             keyword_related = keywords[index_select][:10] ## choose top10 including self
@@ -81,7 +81,7 @@ def insert_keyword_similarity(date):
 if __name__ == '__main__':
     ## set up params
     t_start = time.time()
-    is_UTC0 = True
+    is_UTC0 = check_is_UTC0()
     today = get_today(is_UTC0=is_UTC0)
     yesterday = get_yesterday(is_UTC0=is_UTC0)
     hour_now = get_hour(is_UTC0=is_UTC0)
