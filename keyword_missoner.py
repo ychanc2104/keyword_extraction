@@ -26,6 +26,9 @@ def update_missoner_three_tables(date=None, is_UTC0=False, n=10000):
     media = Media()
     web_id_all = fetch_missoner_web_id()
     # web_id_all = ['ctnews']
+    df_keyword_crossHot_last = fetch_now_crossHot_keywords(date_int)  ## take keyword in missoner_keyword_crossHot
+    if df_keyword_crossHot_last.shape[0]==0:
+        df_keyword_crossHot_last = fetch_crossHot_keyword(date_int) ## if size is 0, directly fetch from keyword_missoner
     for web_id in web_id_all:
         ## fetch source domain mapping
         source_domain_mapping = fetch_source_domain_mapping(web_id)
@@ -88,7 +91,7 @@ def update_missoner_three_tables(date=None, is_UTC0=False, n=10000):
 
     # ## save cross hot keywords, tabel: missoner_keyword_crossHot (compute after all web_id ran) (without trend)
     ## deal with trend before replace missoner_keyword_crossHot table
-    df_keyword_crossHot_last = fetch_now_crossHot_keywords(date_int) ## take keyword in missoner_keyword_crossHot
+    # df_keyword_crossHot_last = fetch_now_crossHot_keywords(date_int) ## take keyword in missoner_keyword_crossHot
     df_keyword_crossHot_now = fetch_crossHot_keyword(date_int) ## only take top100 keywords from missoner_keyword
     df_trend_crossHot = compute_trend_from_df(df_keyword_crossHot_last, df_keyword_crossHot_now)
     ## merge keyword and trend
@@ -161,11 +164,11 @@ def fetch_crossHot_keyword(date_int):
             """
     print(query)
     data = MySqlHelper('dione').ExecuteSelect(query)
-    df_hot_keyword = pd.DataFrame(data, columns=['keyword', 'pageviews', 'external_source_count',
+    df_keyword_crossHot = pd.DataFrame(data, columns=['keyword', 'pageviews', 'external_source_count',
                                                  'internal_source_count', 'mentionedArticles',
                                                  'landings', 'exits', 'bounce', 'timeOnPage'])
-    df_hot_keyword['date'] = [date_int] * df_hot_keyword.shape[0]
-    return df_hot_keyword
+    df_keyword_crossHot['date'] = [date_int] * df_keyword_crossHot.shape[0]
+    return df_keyword_crossHot
 
 ## get latest keyword data
 @timing
@@ -304,7 +307,7 @@ def collect_pageviews_by_source(keyword_dict, keyword, row, source_domain_mappin
 if __name__ == '__main__':
     t_start = time.time()
     date = None
-    # date = '2021-10-30' ## None: assign today
+    # date = '2021-11-16' ## None: assign today
     is_UTC0 = check_is_UTC0()
     hour_now = get_hour(is_UTC0=is_UTC0)
     if (hour_now == 3):
@@ -314,7 +317,7 @@ if __name__ == '__main__':
 
         print(f'routine to update every hour, hour: {hour_now}')
         yesterday = get_yesterday(is_UTC0=is_UTC0)
-        ## cal at 0,1,2 to confirm data is complete
+        ## cal at 3:30 to confirm data is complete
         df_keyword_y, df_keyword_article_y, df_keyword_crossHot_y = update_missoner_three_tables(date=yesterday, n=50000, is_UTC0=is_UTC0)
         print(f"in 3:00 (UTC+8), update yesterday all browse record")
     else:
