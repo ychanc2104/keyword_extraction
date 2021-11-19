@@ -1,7 +1,7 @@
 from db.mysqlhelper import MySqlHelper
 from db.mysqlconnector import MysqlConnector
 from basic.decorator import timing
-from basic.date import to_datetime, get_yesterday
+from basic.date import to_datetime, get_yesterday, datetime_to_str
 from basic.filter import MA
 from sqlalchemy.sql import text
 import datetime
@@ -43,6 +43,43 @@ class Ecom:
             MySqlHelper('cdp').ExecuteUpdate(query, data_list_of_dict)
             # MySqlHelper('cdp').ExecuteInsert('cdp_ad_daily', data_list_of_dict)
             return df
+
+    @timing
+    def fetch_daily_report(self, web_id, date_start, date_end, use_daily=False):
+        date_start = datetime_to_str(date_start)
+        date_end = datetime_to_str(date_end)
+        if use_daily:
+            query = f"SELECT web_id, product_id, title, transaction, click, revenue, date FROM cdp_ad_daily where date BETWEEN '{date_start}' AND '{date_end}' AND web_id='{web_id}'"
+        else:
+            query = f"""
+                    SELECT 
+                        web_id,
+                        product_id,
+                        title,
+                        SUM(click) AS click,
+                        SUM(transcation) AS transcation,
+                        SUM(cor_click) AS cor_click,
+                        SUM(cor_transcation) AS cor_transcation,
+                        SUM(revenue) AS revenue,
+                        SUM(stay_time) AS stay_time,
+                        SUM(page_views) AS page_views,
+                        source,
+                        url,
+                        date
+                    FROM
+                        cdp_ad
+                    WHERE
+                        web_id = '{web_id}'
+                            AND date BETWEEN '{date_start}' AND '{date_end}'
+                            AND source = 'google'
+                    GROUP BY date , product_id
+                    """
+        print(query)
+        data = MySqlHelper('cdp').ExecuteSelect(query)
+        df = pd.DataFrame(data, columns=['web_id','product_id','title','click','transcation','cor_click','cor_transcation',
+                                         'revenue','stay_time','page_views','source','url','date'])
+        return df
+
 
     @timing
     def sqldate(self, web_id, date_start, date_end, use_daily=False, is_reformat_product_id=False):
