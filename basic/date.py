@@ -84,3 +84,7 @@ def check_is_UTC0():
     else:
         is_UTC0 = True
     return is_UTC0
+
+def date_range(date_start, num_days):
+    date_list = [to_datetime(date_start) + datetime.timedelta(days=x) for x in range(num_days)]
+    return date_list
