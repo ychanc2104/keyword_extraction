@@ -60,6 +60,8 @@ class Ecom:
                         SUM(transcation) AS transcation,
                         SUM(cor_click) AS cor_click,
                         SUM(cor_transcation) AS cor_transcation,
+                        SUM(main_revenue) AS main_revenue,
+                        SUM(sub_revenue) AS sub_revenue,
                         SUM(revenue) AS revenue,
                         SUM(stay_time) AS stay_time,
                         SUM(page_views) AS page_views,
@@ -76,8 +78,9 @@ class Ecom:
                     """
         print(query)
         data = MySqlHelper('cdp').ExecuteSelect(query)
-        df = pd.DataFrame(data, columns=['web_id','product_id','title','click','transcation','cor_click','cor_transcation',
-                                         'revenue','stay_time','page_views','source','url','date'])
+        df = pd.DataFrame(data, columns=['web_id','product_id','title','click','transcation','cor_click',
+                                         'cor_transcation','main_revenue','sub_revenue','revenue','stay_time',
+                                         'page_views','source','url','date'])
         return df
 
 

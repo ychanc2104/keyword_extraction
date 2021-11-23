@@ -117,7 +117,7 @@ if __name__ == '__main__':
     stopwords = jieba_base.get_stopword_list()
     stopwords_usertag = jieba_base.read_file('./jieba_based/stop_words_usertag.txt')
     web_id_all = fetch_usertag_web_id()
-    # web_id_all = ['edh']
+    # web_id_all = ['babyhome']
     ## get expired_date
     expired_date = get_date_shift(date_ref=date, days=-3, to_str=True, is_UTC0=is_UTC0) ## set to today + 3
     t_start_outloop = time.time()

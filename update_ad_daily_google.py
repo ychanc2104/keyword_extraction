@@ -1,5 +1,5 @@
 from predict_hot_item.Ecom import Ecom
-from basic.date import get_yesterday, check_is_UTC0
+from basic.date import get_yesterday, check_is_UTC0, to_datetime
 from db.mysqlhelper import MySqlHelper
 
 
@@ -19,6 +19,7 @@ if __name__ == '__main__':
     is_UTC0 = check_is_UTC0()
     ecom = Ecom()
     date_start = get_yesterday(is_UTC0=is_UTC0)
+    # date_start = to_datetime('2021-11-22')
     web_id_all = ecom.fetch_all_web_id()
     # web_id_all = ['i3fresh']
     for web_id in web_id_all:
