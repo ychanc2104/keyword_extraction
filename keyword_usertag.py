@@ -74,6 +74,7 @@ def fetch_browse_record_join(web_id, date, is_df=False):
             s.uuid,
             t.code,
             t.registation_id AS token,
+            t.cert_web_id,
             s.article_id,
             l.title,
             l.content,
@@ -93,7 +94,7 @@ def fetch_browse_record_join(web_id, date, is_df=False):
     print(query)
     data = MySqlHelper('dione').ExecuteSelect(query)
     if is_df:
-        df = pd.DataFrame(data, columns=['web_id', 'uuid', 'token', 'article_id', 'title', 'content', 'keywords'])
+        df = pd.DataFrame(data, columns=['web_id', 'uuid', 'token', 'cert_web_id', 'article_id', 'title', 'content', 'keywords'])
         return df
     else:
         return data
@@ -133,7 +134,7 @@ if __name__ == '__main__':
         data_save = {}
         j=0
         for i, d in enumerate(data):
-            uuid, code, token, article_id, title, content, keywords = d
+            uuid, code, token, cert_web_id, article_id, title, content, keywords = d
             news = title + ' ' + content
             ## pattern for removing https
             news_clean = jieba_base.filter_str(news, pattern="https:\/\/([0-9a-zA-Z.\/]*)")
@@ -149,8 +150,9 @@ if __name__ == '__main__':
                 keyword_list = clean_keyword_list(keyword_list, stopwords, stopwords_usertag)
                 is_cut = 0
             for keyword in keyword_list:
-                data_save[j] = {'web_id':web_id, 'uuid':uuid, 'code':code, 'token':token, 'news':news_clean, 'keywords':keywords,
-                                'usertag':keyword, 'article_id': article_id, 'expired_date':expired_date, 'is_cut': is_cut}
+                data_save[j] = {'web_id':web_id, 'uuid':uuid, 'code':code, 'token':token, 'cert_web_id':cert_web_id,
+                                'news':news_clean, 'keywords':keywords, 'usertag':keyword, 'article_id': article_id,
+                                'expired_date':expired_date, 'is_cut': is_cut}
                 j += 1
             print(f'finish built {i}, article_id: {article_id}')
         ## build DataFrame
@@ -163,10 +165,7 @@ if __name__ == '__main__':
         # ## save to db
         df_map_save = df_map.drop(columns=['news', 'keywords']).drop_duplicates()
         usertag_list_dict = df_map_save.to_dict('records')
-
-        # MySqlHelper('missioner').ExecuteInsert('usertag', usertag_list_dict)
-        query = "REPLACE INTO usertag (web_id, uuid, code, token, usertag, article_id, expired_date, is_cut) VALUES (:web_id, :uuid, :code, :token, :usertag, :article_id, :expired_date, :is_cut)"
-        print(query)
+        query = MySqlHelper.generate_update_SQLquery(df_map_save, 'usertag')
         MySqlHelper('missioner', is_ssh=jump2gcp).ExecuteUpdate(query, usertag_list_dict)
         ## delete expired data
         delete_expired_rows(web_id, table='usertag', is_UTC0=is_UTC0, jump2gcp=jump2gcp)

@@ -3,6 +3,7 @@ from db.mysqlhelper import MySqlHelper
 from gAPI.gconsole import GoogleSearchConsole
 from basic.date import get_today, get_date_shift, check_is_UTC0, datetime_to_str
 from basic.decorator import timing
+import pandas as pd
 
 ## generate keyword metrics and save to normal and historical table
 def save_keyword_metrics(keyword_list):
@@ -79,11 +80,12 @@ def fetch_new_gconsole_keywords():
 def save_init_monthly_keyword_metrics():
     date_start = '2021-01-01'
     is_UTC0 = check_is_UTC0()
-    keyword_list_gtrend = fetch_new_gconsole_keywords()
+    keyword_list_gtrend = fetch_new_gtrend_keywords()
     keyword_list_gconsole = fetch_new_gconsole_keywords()
-    keyword_list = list(set(keyword_list_gtrend + keyword_list_gconsole))
+    keyword_list = list(set(keyword_list_gtrend + keyword_list_gconsole))[:300]
 
     df_monthly_keyword_metrics = GoogleSearchConsole()._generate_12month_keyword_metrics(keyword_list, path_ads_config='./gAPI/google-ads.yaml')
+    df_monthly_keyword_metrics = add_unavailable(keyword_list, df_monthly_keyword_metrics)
     monthly_keyword_metrics_list_dict = df_monthly_keyword_metrics.to_dict('records')
     # df_keyword_metrics = df_monthly_keyword_metrics.drop(columns=['monthly_traffic', 'year', 'month'])
     # keyword_metrics_list_dict = df_keyword_metrics.to_dict('records')
@@ -93,7 +95,23 @@ def save_init_monthly_keyword_metrics():
     ## save to metrics tables
     # MySqlHelper('roas_report').ExecuteUpdate(query, keyword_metrics_list_dict)
     MySqlHelper('roas_report').ExecuteUpdate(query_history, monthly_keyword_metrics_list_dict)
-    return df_monthly_keyword_metrics
+    return keyword_list, df_monthly_keyword_metrics
+
+## add unavailable data
+def add_unavailable(keyword_list, df_monthly_keyword_metrics):
+    add_dict = {}
+    today = get_today()
+    keyword_ask_list = set(df_monthly_keyword_metrics['keyword_ask'])
+    for i,keyword in enumerate(keyword_list):
+        ## adding those keywords not in google keyword_metrics to prevent repetitively asking
+        if keyword not in keyword_ask_list:
+            add_dict[i] = {'keyword_ask':keyword, 'keyword_join':keyword.replace(' ',''), 'keyword_google':keyword,
+                           'competition_level':'', 'competition_value':0, 'low_price':0, 'high_price':0,
+                           'avg_monthly_traffic':0, 'monthly_traffic':0, 'year':today.year, 'month':today.month,
+                           'date': datetime_to_str(today), 'google_available':0}
+    df_add = pd.DataFrame.from_dict(add_dict, "index")
+    df = df_monthly_keyword_metrics.append(df_add).fillna(1)
+    return df
 
 ## update rate: twice per day (13:30, 23:30)
 if __name__ == '__main__':
@@ -110,10 +128,8 @@ if __name__ == '__main__':
     # # df_gconsole_keyword_metrics, df_gconsole_monthly_keyword_metrics = save_keyword_metrics(keyword_list_gconsole)
 
     ################ init table, google_ads_metrics_history ###################
-    df = save_init_monthly_keyword_metrics()
+    keyword_list, df = save_init_monthly_keyword_metrics()
     ################ init table, google_ads_metrics_history ###################
-    # gg = GoogleSearchConsole()
-    # df_monthly_keyword_metrics = gg._generate_12month_keyword_metrics(['CPTPP'], path_ads_config='./gAPI/google-ads.yaml')
 
     ###################################
     # ## for google trend table
@@ -126,7 +142,6 @@ if __name__ == '__main__':
     # ## save to tables
     # # MySqlHelper('roas_report').ExecuteUpdate(query, keyword_gtrend_metrics_list_dict)
     # MySqlHelper('roas_report').ExecuteUpdate(query_history, keyword_gtrend_metrics_list_dict)
-
     ###################################
     ## for google search_console table
     # keyword_list_gconsole = fetch_gconsole_keywords(date_start=date_start, is_UTC0=is_UTC0)
