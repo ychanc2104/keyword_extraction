@@ -129,6 +129,10 @@ class Composer_jieba:
     def clean_keyword(self, keyword_list, stopwords):
         # keyword_list_lower = [keyword.lower() for keyword in keyword_list]
         stopwords_lower = [stopword.lower() for stopword in stopwords]
+        # data_remove_stopword = []
+        # for keyword in keyword_list:
+        #     if keyword.lower() not in stopwords_lower:
+        #         data_remove_stopword += [[keyword]]
         data_clean = [word for word in keyword_list if word != ' ']
         data_remove_stopword = [word for word in data_clean if word.lower() not in stopwords_lower] ## compare with same lowercase
         return data_remove_stopword
@@ -184,8 +188,8 @@ class Composer_jieba:
         return text_clean
 
 
-    def filter_symbol(self, text):
-        pattern = "-|!|\.|~|&|\+|_|～|:"
+    def filter_symbol(self, text, pattern = "-|!|\.|~|&|\+|_|～|:|，|\/"):
+        # pattern = "-|!|\.|~|&|\+|_|～|:|，|\/"
         text_clean = ''.join(re.split(pattern, text))
         return text_clean
 

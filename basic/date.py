@@ -1,5 +1,6 @@
 import datetime
 import socket
+import time
 
 def to_datetime(date):
     if type(date) == str:
@@ -88,3 +89,13 @@ def check_is_UTC0():
 def date_range(date_start, num_days):
     date_list = [to_datetime(date_start) + datetime.timedelta(days=x) for x in range(num_days)]
     return date_list
+
+def date_to_timestamp(date):
+    date = to_datetime(date)
+    time_stamp = int(date.timestamp())
+    return time_stamp
+
+## ts: second
+def timestamp_to_date(ts):
+    date = datetime.datetime.fromtimestamp(ts)
+    return date

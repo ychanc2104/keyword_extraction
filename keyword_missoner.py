@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import time
 from basic.decorator import timing
-from jieba_based.utility import Composer_jieba
+from jieba_based.jieba_utils import Composer_jieba
 from db.mysqlhelper import MySqlHelper
 from media.Media import Media
 from basic.date import get_hour, date2int, get_today, get_yesterday, check_is_UTC0
@@ -307,7 +307,7 @@ def collect_pageviews_by_source(keyword_dict, keyword, row, source_domain_mappin
 if __name__ == '__main__':
     t_start = time.time()
     date = None
-    # date = '2021-11-16' ## None: assign today
+    date = '2021-11-28' ## None: assign today
     is_UTC0 = check_is_UTC0()
     hour_now = get_hour(is_UTC0=is_UTC0)
     if (hour_now == 3):

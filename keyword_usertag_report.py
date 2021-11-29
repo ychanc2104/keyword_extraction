@@ -5,7 +5,7 @@ from db.mysqlhelper import MySqlHelper
 from media.Media import Media
 from basic.date import get_date_shift, datetime_to_str, get_yesterday, to_datetime, get_today
 from basic.decorator import timing
-from jieba_based.utility import Composer_jieba
+from jieba_based.jieba_utils import Composer_jieba
 import jieba
 import jieba.analyse
 import media.Media

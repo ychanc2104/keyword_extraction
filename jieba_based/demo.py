@@ -1,6 +1,6 @@
 import jieba.posseg as pseg
 import jieba
-from jieba_based.utility import Composer_jieba
+from jieba_based.jieba_utils import Composer_jieba
 from opencc import OpenCC
 
 def cut_and_print(text):

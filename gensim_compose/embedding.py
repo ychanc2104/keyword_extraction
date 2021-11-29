@@ -5,7 +5,7 @@ import jieba
 # from ckiptagger import WS, POS, NER
 from opencc import OpenCC
 import numpy as np
-from jieba_based.utility import Composer_jieba
+from jieba_based.jieba_utils import Composer_jieba
 from basic.date import get_today, datetime_to_str
 from basic.decorator import timing
 
@@ -90,7 +90,9 @@ class Composer(Composer_jieba):
                     # preserve chinese only
                     # text = self.preserve_str(text)
                     ## preserve chinese and English
-                    text = self.preserve_str(text, pattern="[\u4E00-\u9FFF|a-zA-Z]*")
+                    # text = self.preserve_str(text, pattern="[\u4E00-\u9FFF|a-zA-Z]*")
+                    ## preserve chinese only
+                    text = self.preserve_str(text, pattern="[\u4E00-\u9FFF]*")
                     # ## pattern for removing https
                     # text = self.filter_str(text, pattern="https:\/\/([0-9a-zA-Z.\/]*)")
                     # text = self.filter_str(text, pattern="[A-Za-z]*") ## remove English
@@ -101,7 +103,7 @@ class Composer(Composer_jieba):
                     cut_list = [word for word in text_cut if word != ' ']
                     cut_list = [word for word in cut_list if len(word) != 1] # remove one word
                     cut_list = self.clean_keyword(cut_list, stopword_list)  ## remove stopwords
-                    cut_list = composer.filter_str_list(cut_list, pattern="[a-z]{2}")  ## remove 2 letter English
+                    # cut_list = composer.filter_str_list(cut_list, pattern="[a-z]{2}")  ## remove 2 letter English
                     # cut_list = self.filter_str_list(cut_list, pattern="[0-9]{2}")  ## remove 2 digit number
                     # cut_list = self.filter_str_list(cut_list, pattern="[0-9.]*")  ## remove floating
                     # cut_list = self.filter_str_list(cut_list, pattern="[A-Za-z]*")  ## remove English
@@ -109,7 +111,7 @@ class Composer(Composer_jieba):
                     print(f"cut results: {cut_list_join}")
                     new_f.write(cut_list_join)
 
-    def fit(self, path_read='wiki_text_seg.txt', path_write='word2vec.model', seed=666, sg=0, window_size=10, vector_size=100, min_count=1, workers=8, epochs=5, batch_words=10000):
+    def fit(self, path_read='wiki_text_seg.txt', path_write='word2vec.model', seed=1, sg=0, window_size=10, vector_size=100, min_count=1, workers=8, epochs=5, batch_words=10000):
         train_data = word2vec.LineSentence(path_read)
         model = word2vec.Word2Vec(
             train_data,
@@ -166,7 +168,7 @@ class Composer(Composer_jieba):
         norm_1 = np.sqrt(sum(vector_1**2))
         norm_2 = np.sqrt(sum(vector_2**2))
         if not_in_1 or not_in_2: ## both words are not in vector model
-            similarity = -1
+            similarity = -1 # -1
         else:
             similarity = sum(vector_1*vector_2)/(norm_1*norm_2)
         return similarity
@@ -180,64 +182,36 @@ if __name__ == '__main__':
     ############## extract wiki from .xml.bz2 to .txt ###############
 
     ################## tokenize wiki text ###################
-    composer.cut(in_sub_folder=True, path_read='../gitignore/wiki/20211101_wiki_text.txt', path_write='20211101_wiki_text_seg_remove_one.txt')
+    # composer.cut(in_sub_folder=True, path_read='../gitignore/wiki/20211101_wiki_text.txt', path_write='20211101_wiki_text_seg_zhonly_remove_one.txt')
     ################## tokenize wiki text ###################
 
+    ############## train word embedding ###############
+    # composer.fit(path_read='wiki_text_seg.txt', path_write='word2vec.model')
+    # composer.fit(path_read='wiki_text_seg_zh_only.txt', path_write='word2vec_zh_only.model')
+    # composer.fit(path_read='20211101_wiki_text_seg_remove_one.txt', path_write='word2vec_remove_one.model')
+    # composer.fit(path_read='20211101_wiki_text_seg_zhonly_remove_one.txt', path_write='word2vec_zhonly_remove_one.model')
+    # composer.fit(path_read='20211101_wiki_text_seg_zhonly_remove_one.txt',
+    #              path_write='word2vec_zhonly_remove_one_v200m10.model', vector_size=200, min_count=10)
+    # composer.fit(path_read='20211101_wiki_text_seg_zhonly_remove_one.txt',
+    #              path_write='word2vec_zhonly_remove_one_v300m10w5.model', vector_size=300, min_count=10)
+    composer.fit(path_read='20211101_wiki_text_seg_zhonly_remove_one.txt',
+                 path_write='word2vec_zhonly_remove_one_v300m20w10.model', vector_size=300, min_count=20, window_size=10)
+    ############## train word embedding ###############
+
+    ############## load word embedding model ###############
+    # composer.load_model(path='word2vec_zhonly_remove_one.model')
+    # composer.load_model(path='word2vec_remove_one.model')
+    # composer.load_model(path='word2vec_zhonly_remove_one_v200m10.model')
+    ############## load word embedding model ###############
+
+    ############## test similarity ###############
+    # composer.most_similar('iphone')
+    # similarity1 = composer.similarity('男性', '強腎方')
+    ############## test similarity ###############
 
     # text = '船歌 barcarolle 源自意大利語 barca 意爲 起源於意大利威尼斯 有趣的是 把這種曲調發揚起來的 反而並不是意大利作曲家 船歌一般都是採用以 拍寫成 例如貝多芬的 號交響曲 樂章便是最好的引證'
     # text_cut = jieba.cut(text, HMM=False)
     # cut_list = [word for word in text_cut if word != ' ']
     # cut_list = [word for word in cut_list if len(word) != 1]  # remove one word
     # cut_list = composer.filter_str_list(cut_list, pattern="[a-z]{2}")  ## remove English
-    ############## train word embedding ###############
-    # composer.fit(path_read='wiki_text_seg.txt', path_write='word2vec.model')
-    # composer.fit(path_read='wiki_text_seg_zh_only.txt', path_write='word2vec_zh_only.model')
-    ############## train word embedding ###############
 
-    # composer.load_model(path='word2vec_zh_only.model')
-    # composer.most_similar('疫苗')
-
-    #
-    # mean_vector = composer.mean_word2vector(['海鹽', '巧克力'])
-
-    # keyword_list = ['海鹽', '巧克力']
-    #
-    #
-    # n = len(keyword_list)
-    # sum_vector = np.zeros(len(composer.mean_vector))
-    # for keyword in keyword_list:
-    #     try:
-    #         sum_vector += composer.model.wv[keyword]
-    #     except:
-    #         sum_vector += np.zeros(len(composer.mean_vector))
-    # mean_vector = sum_vector / n
-    # composer.file_ct2tw(path='../jieba_based/stop_words.txt')
-    # composer.cut(path_write='../gitignore/wiki_text_seg_cn2.txt', user_config=True)
-    # composer.ckip_cut(path_write='../gitignore/wiki_text_seg_ckip_2.txt')
-
-
-    # text='法學 jurisprudence legal theory 又称 法律学 法律科学 是社會科學中一門特殊的學科 theory theory 所有的秩序都可以說是一種 法律 例如自然規律 倫常 邏輯法則或美學 而法學就是研究法律的法則 雖然許多法學家 例如 認定法學沒有學術性質 法律史學以及法律科學等三大部門'
-    # text = '算經十書 數學競賽 数学题 註記 参考书目 benson donald the moment of proof mathematical epiphanies oxford university press usa new ed edition december isbn boyer carl history of mathematics wiley edition march isbn concise history of mathematics from the concept of number to contemporary mathematics courant and robbins what is mathematics an elementary approach to ideas and methods oxford university press usa edition july isbn davis philip and hersh reuben the mathematical experience mariner books reprint edition january isbn gentle introduction to the world of mathematics eves howard an introduction to the history of mathematics sixth edition saunders isbn gullberg jan mathematics from the birth of numbers norton company st edition october isbn an encyclopedic overview of mathematics presented in clear simple language hazewinkel michiel ed 數學百科全書 kluwer academic publishers translated and expanded version of soviet mathematics encyclopedia in ten expensive volumes the most complete and authoritative work available also in paperback and on cd rom and online jourdain philip the nature of mathematics in the world of mathematics james newman editor dover isbn kline morris mathematical thought from ancient to modern times oxford university press usa paperback edition march isbn 牛津英語詞典 second edition ed john simpson and edmund weiner clarendon press isbn the oxford dictionary of english etymology reprint isbn pappas theoni the joy of mathematics wide world publishing revised edition june isbn peterson ivars mathematical tourist new and updated snapshots of modern mathematics owl books isbn 参考网址 rusin dave the mathematical atlas 英文版 现代数学漫游 weisstein eric world of mathematics 一个在线的数学百科全书 数学 另一个在线的数学百科全书 mathforge 一个包含数学 物理 epistemath 数学知识 香港科技大学 数学网'
-    # regex = re.compile(r'[^A-Za-z]+')
-    # text_list = regex.findall(text)
-    # text_clean = ''
-    # for text in text_list:
-    #     if text != ' ':
-    #         text_clean += text
-    # text_clean2 = text_clean.replace('  ',' ')
-
-
-    # text_list = [text.replace(' ', '') for text in text_list if text != ' ']
-    # text_clean = ' '.join(text_list)
-    #
-    # path_data = r'../gitignore/data'
-    # ws = WS(path_data)
-    # word_cut2 = ws([text], sentence_segmentation=True)[0]
-    # data = [word.replace(' ','') for word in word_cut2 if word != ' ']
-    # data = [word for word in data if word != '']
-    # data2 = ' '.join(data)
-    # composer.fit(path_read='../gitignore/wiki_text_seg_ckip.txt', path_write='../gitignore/word2vec_ckip100.model', vector_size=100)
-    # composer.load_model(path='../gensim_compose/word2vec.model')
-    # similarity1 = composer.similarity('男性', '強腎方')
-    # similarity2 = composer.similarity('比特幣', '投資')
-    # print('/'.join(jieba.cut('「台中」台中正確應該不會被切開', HMM=False)))
