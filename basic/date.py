@@ -5,6 +5,8 @@ import time
 def to_datetime(date):
     if type(date) == str:
         date = datetime.datetime.strptime(date, '%Y-%m-%d')
+    elif type(date) == datetime.date:
+        date = datetime.datetime.strptime(datetime_to_str(date), '%Y-%m-%d')
     return date
 
 def get_yesterday(is_UTC0=False):
@@ -90,12 +92,13 @@ def date_range(date_start, num_days):
     date_list = [to_datetime(date_start) + datetime.timedelta(days=x) for x in range(num_days)]
     return date_list
 
+## 1970-01-01 0:00:00 => 0
 def date_to_timestamp(date):
-    date = to_datetime(date)
+    date = to_datetime(date).replace(tzinfo=datetime.timezone.utc)
     time_stamp = int(date.timestamp())
     return time_stamp
 
-## ts: second
+## ts: second, if you are in UTC+8, ts=0 =>  1970-01-01 0:00:00
 def timestamp_to_date(ts):
-    date = datetime.datetime.fromtimestamp(ts)
+    date = datetime.datetime.utcfromtimestamp(ts)
     return date

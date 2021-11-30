@@ -111,16 +111,16 @@ if __name__ == '__main__':
     is_UTC0 = True
     jump2gcp = True
     date = get_yesterday(is_UTC0=is_UTC0) ## compute all browsing record yesterday ad 3:10 o'clock
-    # date = '2021-11-28'
+    date = '2021-11-29'
     ## set up config (add word, user_dict.txt ...)
     jieba_base = Composer_jieba()
     all_hashtag = jieba_base.set_config()
     stopwords = jieba_base.get_stopword_list()
     stopwords_usertag = jieba_base.read_file('./jieba_based/stop_words_usertag.txt')
     web_id_all = fetch_usertag_web_id()
-    # web_id_all = ['managertoday']
+    web_id_all = ['managertoday']
     ## get expired_date
-    expired_date = get_date_shift(date_ref=date, days=-4, to_str=True, is_UTC0=is_UTC0) ## set to today + 3 (yesterday+4)
+    expired_date = get_date_shift(date_ref=date, days=-4, to_str=True, is_UTC0=is_UTC0) ## set to today + 3 (yesterday+4), preserve 4 days
     t_start_outloop = time.time()
     for web_id in web_id_all:
         ## fetch subscribed browse record
