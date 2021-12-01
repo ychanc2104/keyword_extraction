@@ -8,6 +8,7 @@ from pytrends.request import TrendReq
 from basic.date import get_today
 from db.mysqlhelper import MySqlHelper
 from sqlalchemy import text
+from jieba_based.jieba_utils import Composer_jieba
 
 
 # from bs4 import BeautifulSoup
@@ -21,7 +22,10 @@ import datetime
 class gtrend:
     def __init__(self, language='zh-TW', tz=-480, ns=15, geo='TW', client='firefox', timeframe_custom='2021-09-16 2021-10-25'):
         self.GENERAL_URL = 'https://trends.google.com/trends/api/explore'
+        self.url_multiline = 'https://trends.google.com.tw/trends/api/widgetdata/multiline'
+        self.url_comparedgeo = 'https://trends.google.com.tw/trends/api/widgetdata/comparedgeo'
         self.url_relatedsearch = 'https://trends.google.com.tw/trends/api/widgetdata/relatedsearches'
+        self.url_list = [self.url_multiline, self.url_comparedgeo, self.url_relatedsearch, self.url_relatedsearch] ## order by widgets
         self.url_dailytrend = 'https://trends.google.com.tw/trends/api/dailytrends'
         # 'https://www.google.com/complete/search?q=di&cp=2&client=gws-wiz&xssi=t&hl=zh-TW&authuser=0&psi=JK5mYfbPIqaJr7wPyLyXiAs.1634119204880&dpr=1'
         self.url_autocomplete = 'https://www.google.com/complete/search'
@@ -62,6 +66,7 @@ class gtrend:
 
     # get only latest one month
     def fetch_keyword(self, date_start, date_end, filter_repeat=True, is_select=True):
+
         date_start = to_datetime(date_start)
         date_end = to_datetime(date_end)
         # url_nodate = self.url_dailytrend + f'?hl={self.language}&tz={self.tz}&ns={self.ns}&geo={self.geo}'
@@ -154,33 +159,73 @@ class gtrend:
         df['relatedQueries'] = queries
         return df
     ## timeframe range limit, ex: 2021-10-22 2021-10-25 (4 days)
-    def fetch_yt_keyword(self, gprop='youtube', cat=0, timeframe='today 1-m'):
+    def fetch_keyword_expore(self, keyword, gprop='', category=0, timeframe='today 1-m'):
+        """
+        get popular queries in 'web', 'images', 'news', 'youtube', 'froogle'
+        Parameters
+        ----------
+        keyword: '' for popular queries
+        gprop: ''(web), 'images', 'news', 'youtube', 'froogle'
+        category: 0 to fetch token
+        timeframe: 'today 1-m', 'today 12-m', '2021-10-22 2021-10-22'
+
+        Returns:
+            four dict, 'MultiLine', 'ComparedGEO', 'SearchTopic' and 'SearchQuery'
+        -------
+
+        """
         """Create the payload for related queries, interest over time and interest by region"""
         if gprop not in ['', 'images', 'news', 'youtube', 'froogle']:
             raise ValueError('gprop must be empty (to indicate web), images, news, youtube, or froogle')
         self.token_payload = {
             'hl': self.language,
             'tz': self.tz,
-            'req': {'comparisonItem': [{'geo':self.geo, 'time':timeframe}], 'category': cat, 'property': gprop}
+            'req': {'comparisonItem': [{'keyword':keyword, 'geo':self.geo, 'time':timeframe}], 'category': category, 'property': gprop}
         }
-
-        self.token_payload['req'] = json.dumps(self.token_payload['req'])
+        self.token_payload['req'] = json.dumps(self.token_payload['req']) ## dict to string
         widget_dicts_list = self.TrendReq._get_data(
             url=self.GENERAL_URL,
             method='get',
             params=self.token_payload,
             trim_chars=4,
-        )['widgets']
+        )['widgets'] ## get four objects, 1.multiline, 2.comparedgeo, 3.related topics, 4.related queries
         response_all = {}
-        dict_name = ['SearchTopic', 'SearchQuery']
+        dict_name = ['MultiLine', 'ComparedGEO', 'SearchTopic', 'SearchQuery']
         for i, widget_dicts in enumerate(widget_dicts_list):
-            url = self.build_request_url(self.url_relatedsearch, ['hl', 'tz', 'req', 'token'],
+            print(f"finish {i}")
+            url = self.build_request_url(self.url_list[i], ['hl', 'tz', 'req', 'token'],
                                          [self.language, self.tz, widget_dicts['request'], widget_dicts['token']])
             response = requests.get(url)
-            df_hot = pd.DataFrame(json.loads(re.sub(r'\)\]\}\',\n', '', response.text))['default']['rankedList'][0]['rankedKeyword'])
-            df_up = pd.DataFrame(json.loads(re.sub(r'\)\]\}\',\n', '', response.text))['default']['rankedList'][1]['rankedKeyword'])
-            response_all[dict_name[i]] = [df_hot, df_up]
+            if dict_name[i] == 'MultiLine':
+                df_multiline = pd.DataFrame(json.loads(re.sub(r'\)\]\}\',\n', '', response.text))['default']['timelineData'])
+                response_all[dict_name[i]] = self._reformat_value(df_multiline)
+            elif dict_name[i] == 'ComparedGEO':
+                df_geo = pd.DataFrame(json.loads(re.sub(r'\)\]\}\',\n', '', response.text))['default']['geoMapData'])
+                response_all[dict_name[i]] = self._reformat_value(df_geo)
+            else:
+                df_hot = pd.DataFrame(json.loads(re.sub(r'\)\]\}\',\n', '', response.text))['default']['rankedList'][0]['rankedKeyword']) #popular topics or queries
+                df_up  = pd.DataFrame(json.loads(re.sub(r'\)\]\}\',\n', '', response.text))['default']['rankedList'][1]['rankedKeyword']) #increasing topics or queries
+                if dict_name[i] == 'SearchTopic':
+                    response_all[dict_name[i]] = {'hot': self._reshape_topic(df_hot), 'up': self._reshape_topic(df_up)}
+                else:
+                    response_all[dict_name[i]] = {'hot': df_hot, 'up': df_up}
         return response_all
+
+    @staticmethod
+    def _reshape_topic(df):
+        mid = [text['mid'] for text in df.topic.values]
+        title_tw = [Composer_jieba().zwcn2tw(text['title']) for text in df.topic.values]
+        type = [Composer_jieba().zwcn2tw(text['type']) for text in df.topic.values]
+        df['title'] = title_tw
+        df['mid'] = mid
+        df['type'] = type
+        df = df.drop(columns=['topic'], inplace=False)[['title', 'type', 'formattedValue']]
+        return df
+
+    @staticmethod
+    def _reformat_value(df):
+        df['value'] = [value[0] for value in df.value.values]
+        return df
 
     def build_request_url(self, url, params_name_list, params_value_list):
         url += '?'
@@ -199,11 +244,38 @@ class gtrend:
         df_unique['traffic'] = df_unique['traffic'].astype('int')
         return df_unique
 
+    @staticmethod
+    def save_multi_df(name_list, df_list):
+        for name,df in zip(name_list, df_list):
+            df.to_excel(f"{name}.xlsx")
+
 if __name__ == '__main__':
 
 
     gtrend = gtrend()
-    response_all = gtrend.fetch_yt_keyword(timeframe='2021-10-22 2021-10-22')
+    response_all = gtrend.fetch_keyword_expore(keyword='公投', gprop='',timeframe='today 12-m')
+
+    df_multiline = response_all['MultiLine']
+    df_geo = response_all['ComparedGEO']
+    df_topic_hot, df_topic_up = response_all['SearchTopic']['hot'], response_all['SearchTopic']['up']
+    df_query_hot, df_query_up = response_all['SearchQuery']['hot'], response_all['SearchQuery']['up']
+
+    gtrend.save_multi_df(name_list=['trend','geo','topic_hot','topic_up','query_hot','query_up'],
+                         df_list=[df_multiline, df_geo, df_topic_hot, df_topic_up, df_query_hot, df_query_up])
+
+    # df = response_all['MultiLine']
+    # df['value'] = [value[0] for value in df.value.values]
+
+    # df = response_all['SearchTopic']['hot']
+    # mid = [text['mid'] for text in df.topic.values]
+    # title_tw = [Composer_jieba().zwcn2tw(text['title']) for text in df.topic.values]
+    # type = [text['type'] for text in df.topic.values]
+    #
+    # df['title'] = title_tw
+    # df['mid'] = mid
+    # df['type'] = type
+    # df = df.drop(columns=['topic'], inplace=False)[['title', 'type', 'formattedValue']]
+
     # date_end = datetime_to_str(get_today())
     # date_start = datetime_to_str(to_datetime(date_end) - datetime.timedelta(days=29))
     # df_30day = gtrend().fetch_keyword(date_start='2021-10-18', date_end='2021-10-18', filter_repeat=False)
