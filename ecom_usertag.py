@@ -44,7 +44,7 @@ def fetch_ecom_content(web_id, product_id_list):
 def fetch_usertag_ecom_web_id():
     query = "SELECT web_id FROM web_push.LineConfigTable where enable=1"
     print(query)
-    data = MySqlHelper('new_slave_cloud').ExecuteSelect(query)
+    data = MySqlHelper('new_slave_cloud', is_ssh=True).ExecuteSelect(query)
     web_id_list = list(set([d[0] for d in data]))
     return web_id_list
 
@@ -84,7 +84,7 @@ if __name__ == '__main__':
     date_last_update = fetch_last_update_date() ## if '2021-11-20', data is updated to '2021-11-19'
     date_max = fetch_usertag_last_update_date()
     days = (date_last_update - date_max).days
-    date_list_to_update = date_range(date_max, days)[1:-1]
+    date_list_to_update = date_range(date_max, days)[1:]
     # date_list_to_update = ['2021-11-24']
     ## set up config (add word, user_dict.txt ...)
     jieba_base = Composer_jieba()
@@ -92,7 +92,7 @@ if __name__ == '__main__':
     stopwords = jieba_base.get_stopword_list()
     web_id_list = fetch_usertag_ecom_web_id()
     # web_id_list = ['underwear']
-    # date = '2021-11-10'
+    # date_list_to_update = ['2021-11-30']
     for date in date_list_to_update:
         for web_id in web_id_list:
             df_user_record = fetch_ecom_user_record(web_id, date) ## fetch usert record at this day
@@ -129,7 +129,7 @@ if __name__ == '__main__':
                 data_keywords[j] = {'web_id': web_id, 'product_id': product_id, 'keywords': keywords,
                                     'title': title, 'description': description}
                 j += 1
-                print(f'finish built {j}, article_id: {product_id}')
+                print(f'finish built {j}, product_id: {product_id}')
             df_usertag = pd.DataFrame.from_dict(data_usertag, "index")
             ## save to usertag_ecom
             df_usertag_save = df_usertag.drop(columns=['title', 'description', 'keywords']).drop_duplicates()
