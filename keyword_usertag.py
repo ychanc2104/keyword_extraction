@@ -2,7 +2,7 @@ import pandas as pd
 import datetime
 from db.mysqlhelper import MySqlHelper
 from media.Media import Media
-from basic.date import get_date_shift, datetime_to_str, get_yesterday, to_datetime, get_today
+from basic.date import get_date_shift, datetime_to_str, get_yesterday, to_datetime, get_today, check_is_UTC0
 from basic.decorator import timing
 from jieba_based.jieba_utils import Composer_jieba
 from keyword_usertag_report import keyword_usertag_report, delete_expired_rows
@@ -100,25 +100,19 @@ def fetch_browse_record_join(web_id, date, is_df=False):
         return data
 
 
-# def delete_expired_rows(web_id, table='usertag', is_UTC0=False, jump2gcp=True):
-#     date_now = datetime_to_str(get_today(is_UTC0=is_UTC0))
-#     query = f"DELETE FROM {table} where expired_date<'{date_now}' and web_id='{web_id}'"
-#     print(query)
-#     MySqlHelper('missioner', is_ssh=jump2gcp).ExecuteUpdate(query)
-
 if __name__ == '__main__':
     ## set is in UTC+0 or UTC+8
-    is_UTC0 = True
+    is_UTC0 = check_is_UTC0()
     jump2gcp = True
     date = get_yesterday(is_UTC0=is_UTC0) ## compute all browsing record yesterday ad 3:10 o'clock
-    date = '2021-11-29'
-    ## set up config (add word, user_dict.txt ...)
+    # date = '2021-12-02'
+    # set up config (add word, user_dict.txt ...)
     jieba_base = Composer_jieba()
     all_hashtag = jieba_base.set_config()
     stopwords = jieba_base.get_stopword_list()
     stopwords_usertag = jieba_base.read_file('./jieba_based/stop_words_usertag.txt')
     web_id_all = fetch_usertag_web_id()
-    web_id_all = ['managertoday']
+    # web_id_all = ['btnet']
     ## get expired_date
     expired_date = get_date_shift(date_ref=date, days=-4, to_str=True, is_UTC0=is_UTC0) ## set to today + 3 (yesterday+4), preserve 4 days
     t_start_outloop = time.time()
@@ -171,7 +165,7 @@ if __name__ == '__main__':
         delete_expired_rows(web_id, table='usertag', is_UTC0=is_UTC0, jump2gcp=jump2gcp)
 
         ### prepare keyword_usertag_report
-        df_freq_token = keyword_usertag_report(web_id, usertag_table='usertag', report_table='usertag_report', is_UTC0=is_UTC0, jump2gcp=jump2gcp)
+        df_freq_token = keyword_usertag_report(web_id, expired_date, usertag_table='usertag', report_table='usertag_report', is_UTC0=is_UTC0, jump2gcp=jump2gcp)
     t_end_program = time.time()
     spent_time_program = t_end_program - t_start_outloop
     print(f'One round spent: {spent_time_program} s')

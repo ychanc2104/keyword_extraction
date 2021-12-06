@@ -1,14 +1,8 @@
-import time
 import pandas as pd
-import datetime
 from db.mysqlhelper import MySqlHelper
 from media.Media import Media
 from basic.date import get_date_shift, datetime_to_str, get_yesterday, to_datetime, get_today
 from basic.decorator import timing
-from jieba_based.jieba_utils import Composer_jieba
-import jieba
-import jieba.analyse
-import media.Media
 import numpy as np
 
 @timing
@@ -16,7 +10,6 @@ def fetch_usertag(web_id, table='usertag'):
     date_now = datetime_to_str(get_today())
     query = f"SELECT uuid, token, usertag FROM {table} where expired_date>='{date_now}' and web_id='{web_id}'"
     # query = f"SELECT uuid, token, usertag FROM usertag where web_id='{web_id}'"
-
     print(query)
     data = MySqlHelper('missioner').ExecuteSelect(query)
     df_map_save = pd.DataFrame(data=data, columns=['uuid', 'token', 'usertag'])
@@ -35,11 +28,12 @@ def count_unique(data_dict):
 
 
 @timing
-def keyword_usertag_report(web_id, usertag_table='usertag', report_table='usertag_report', is_UTC0=False, jump2gcp=True):
-    expired_date = get_date_shift(days=-3, to_str=True, is_UTC0=is_UTC0) ## set to today + 3
+def keyword_usertag_report(web_id, expired_date=None, usertag_table='usertag', report_table='usertag_report', is_UTC0=False, jump2gcp=True):
+    if expired_date==None:
+        expired_date = get_date_shift(days=-4, to_str=True, is_UTC0=is_UTC0)
     # for web_id in web_id_all:
     ### collect report
-    df_map = fetch_usertag(web_id, usertag_table)
+    df_map = fetch_usertag(web_id, usertag_table) ## fetch all usertags when expired_date >= today
     if df_map.size == 0:
         print('no valid data in missioner.usertag')
     ## count term frequency
@@ -77,7 +71,7 @@ def keyword_usertag_report(web_id, usertag_table='usertag', report_table='userta
     # freq_mean = np.mean(token_count_list)
     if n_row < 500:
         df_freq_token = df_freq_token[df_freq_token.token_count > 2]
-        freq_limit = np.mean(token_count_list)
+        freq_limit = np.mean(token_count_list) - 50
         print(f"only take {n_row} keywords, filter out token_count is greater than {freq_limit}")
     else:
         freq_limit = np.percentile(token_count_list, [100 * (1 - 500/n_row)])[0]
