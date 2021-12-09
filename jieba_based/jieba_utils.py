@@ -6,7 +6,7 @@ import re
 from basic.decorator import timing
 from opencc import OpenCC
 from db.mysqlhelper import MySqlHelper
-
+from definitions import ROOT_DIR
 ## jieba.analyse.set_stop_words, 可使extract keyword阻擋這些字（cut, 切字無法）
 ## jieba.set_dictionary, jieba.load_userdict, 可同時影響cut and extract_tag
 
@@ -15,14 +15,15 @@ class Composer_jieba:
         # self.web_id = web_id
         self.web_id_Vietnam = ['thanhnien2021', 'tuoitrexahoi']
         self.web_id_with_hash_tag = ['ctnews', 'mirrormedia', 'upmedia']
+        self.ROOT_DIR = ROOT_DIR
 
-    def set_config(self, in_sub_folder=False):
+    def set_config(self):
         # jieba_base = Composer_jieba()
         jieba.re_han_default = re.compile("([\u4E00-\u9FD5a-zA-Z0-9+#&\._% -]+)", re.U) ## English word can be recognized, ex: macbook pro
-        self._load_cut_config(in_sub_folder)
-        self._load_kw_config(in_sub_folder)
+        self._load_cut_config()
+        self._load_kw_config()
         ## add file of add_word.txt
-        self.add_words(in_sub_folder=in_sub_folder)
+        self.add_words()
         all_hashtag = self.fetch_all_hashtags()
         gtrend_keywords = self.fetch_gtrend_keywords()
         ## add all hashtags and google trend keywords to the dictionary
@@ -31,25 +32,16 @@ class Composer_jieba:
         return all_hashtag
 
     @timing
-    def _load_kw_config(self, in_sub_folder=False):
-        if in_sub_folder:
-            relative_path = '..' ## in main project folder
-        else:
-            relative_path = '.' ## in sub project folder
-        jieba.analyse.set_stop_words(f'{relative_path}/jieba_based/stop_words.txt')
-        jieba.analyse.set_idf_path(f'{relative_path}/jieba_based/idf_collect.txt')
+    def _load_kw_config(self):
+        jieba.analyse.set_stop_words(f'{self.ROOT_DIR}/jieba_based/stop_words.txt')
+        jieba.analyse.set_idf_path(f'{self.ROOT_DIR}/jieba_based/idf_collect.txt')
 
     @timing
-    def _load_cut_config(self, in_sub_folder=False):
-        if in_sub_folder:
-            relative_path = '..' ## in main project folder
-        else:
-            relative_path = '.' ## in sub project folder
+    def _load_cut_config(self):
         # jieba.set_dictionary(f'{relative_path}/jieba_based/dict.txt.big.txt')  ## tradictional chinese dictionary
         # jieba.set_dictionary(f'{relative_path}/jieba_based/dict_zhTW.txt')  ## tradictional chinese dictionary
-
-        jieba.set_dictionary(f'{relative_path}/jieba_based/idf_POS_collect.txt')  ## merged tradictional chinese dictionary
-        jieba.load_userdict(f'{relative_path}/jieba_based/user_dict.txt')  ## user-defined dictionary (word, weight, POS(PartOfSpeech)), can also affect jieba.analyse.extract_tags
+        jieba.set_dictionary(f'{self.ROOT_DIR}/jieba_based/idf_POS_collect.txt')  ## merged tradictional chinese dictionary
+        jieba.load_userdict(f'{self.ROOT_DIR}/jieba_based/user_dict.txt')  ## user-defined dictionary (word, weight, POS(PartOfSpeech)), can also affect jieba.analyse.extract_tags
 
     @timing
     def get_stopword_list(self, in_sub_folder=False):
@@ -106,12 +98,8 @@ class Composer_jieba:
         return hashtag_list_flat
 
     @timing
-    def add_words(self, words=None, in_sub_folder=False):
-        if in_sub_folder:
-            relative_path = '..' ## in main project folder
-        else:
-            relative_path = '.' ## in sub project folder
-        path = f'{relative_path}/jieba_based/add_words.txt'
+    def add_words(self, words=None):
+        path = f'{self.ROOT_DIR}/jieba_based/add_words.txt'
         if words == None: ## use words in add_words.txt
             # words = [line.rstrip('\n') for line in open(path, 'r', encoding='utf-8').readlines()]
             words = self.read_file(path)

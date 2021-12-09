@@ -90,6 +90,7 @@ class GoogleTrend:
             df = df[['title', 'relatedQueries', 'traffic', 'date']]
             df = df.rename(columns={'title': 'keyword'})
             if filter_repeat:
+                # df = self.remove_repeat(df)
                 df = df.drop_duplicates(subset=['keyword', 'traffic', 'date'])
         else:
             df = df.drop(columns=['formattedTraffic'])
@@ -173,18 +174,10 @@ class GoogleTrend:
         """Create the payload for related queries, interest over time and interest by region"""
         if gprop not in ['', 'images', 'news', 'youtube', 'froogle']:
             raise ValueError('gprop must be empty (to indicate web), images, news, youtube, or froogle')
-        if keyword == '':
-            dict_name = ['SearchTopic', 'SearchQuery']
-            req = {'comparisonItem': [{'geo':self.geo, 'time':timeframe}], 'category': category, 'property': gprop}
-            self.url_list = [self.url_relatedsearch, self.url_relatedsearch]
-        else:
-            dict_name = ['MultiLine', 'ComparedGEO', 'SearchTopic', 'SearchQuery']
-            req = {'comparisonItem': [{'keyword':keyword, 'geo':self.geo, 'time':timeframe}], 'category': category, 'property': gprop}
-
         self.token_payload = {
             'hl': self.language,
             'tz': self.tz,
-            'req': req
+            'req': {'comparisonItem': [{'keyword':keyword, 'geo':self.geo, 'time':timeframe}], 'category': category, 'property': gprop}
         }
         self.token_payload['req'] = json.dumps(self.token_payload['req']) ## dict to string
         widget_dicts_list = self.TrendReq._get_data(
@@ -193,15 +186,13 @@ class GoogleTrend:
             params=self.token_payload,
             trim_chars=4,
         )['widgets'] ## get four objects, 1.multiline, 2.comparedgeo, 3.related topics, 4.related queries
-        self.widget_dicts_list = widget_dicts_list
         response_all = {}
-
+        dict_name = ['MultiLine', 'ComparedGEO', 'SearchTopic', 'SearchQuery']
         for i, widget_dicts in enumerate(widget_dicts_list):
             print(f"finish {i}")
-            self.url = self.build_request_url(self.url_list[i], ['hl', 'tz', 'req', 'token'],
+            url = self.build_request_url(self.url_list[i], ['hl', 'tz', 'req', 'token'],
                                          [self.language, self.tz, widget_dicts['request'], widget_dicts['token']])
-            response = requests.get(self.url)
-            self.response = response
+            response = requests.get(url)
             if dict_name[i] == 'MultiLine':
                 df_multiline = pd.DataFrame(json.loads(re.sub(r'\)\]\}\',\n', '', response.text))['default']['timelineData'])
                 response_all[dict_name[i]] = self._reformat_value(df_multiline)
@@ -239,6 +230,17 @@ class GoogleTrend:
             url += f'{name}={value}&'
         return url[:-1]
 
+
+    def remove_repeat(self, df, columns=['keyword', 'traffic', 'date']):
+        series_join = (df['keyword'] + ',' + df['traffic'].astype('string') + ',' + df['date']).unique()
+        data_list = []
+        for s in series_join:
+            data_list += [s.split(',')]
+        data_array = np.array(data_list)
+        df_unique = pd.DataFrame(data_array, columns=['keyword', 'traffic', 'date'])
+        df_unique['traffic'] = df_unique['traffic'].astype('int')
+        return df_unique
+
     @staticmethod
     def save_multi_df(name_list, df_list):
         for name,df in zip(name_list, df_list):
@@ -247,7 +249,7 @@ class GoogleTrend:
 if __name__ == '__main__':
 
 
-    gtrend = GoogleTrend()
+    gtrend = gtrend()
     response_all = gtrend.fetch_keyword_expore(keyword='公投', gprop='',timeframe='today 12-m')
 
     df_multiline = response_all['MultiLine']
@@ -255,8 +257,8 @@ if __name__ == '__main__':
     df_topic_hot, df_topic_up = response_all['SearchTopic']['hot'], response_all['SearchTopic']['up']
     df_query_hot, df_query_up = response_all['SearchQuery']['hot'], response_all['SearchQuery']['up']
 
-    # gtrend.save_multi_df(name_list=['trend','geo','topic_hot','topic_up','query_hot','query_up'],
-    #                      df_list=[df_multiline, df_geo, df_topic_hot, df_topic_up, df_query_hot, df_query_up])
+    gtrend.save_multi_df(name_list=['trend','geo','topic_hot','topic_up','query_hot','query_up'],
+                         df_list=[df_multiline, df_geo, df_topic_hot, df_topic_up, df_query_hot, df_query_up])
 
     # df = response_all['MultiLine']
     # df['value'] = [value[0] for value in df.value.values]

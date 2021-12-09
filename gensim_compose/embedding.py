@@ -152,7 +152,7 @@ class Composer(Composer_jieba):
         for item in self.model.wv.most_similar(word):
             print(item)
     ## similarity of two words
-    def similarity(self, word_1='生物', word_2='微生物'):
+    def similarity(self, word_1='生物', word_2='微生物', default=-1):
         not_in_1 = False
         not_in_2 = False
         try:
@@ -168,7 +168,7 @@ class Composer(Composer_jieba):
         norm_1 = np.sqrt(sum(vector_1**2))
         norm_2 = np.sqrt(sum(vector_2**2))
         if not_in_1 or not_in_2: ## both words are not in vector model
-            similarity = -1 # -1
+            similarity = default # -1
         else:
             similarity = sum(vector_1*vector_2)/(norm_1*norm_2)
         return similarity
