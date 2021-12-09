@@ -307,7 +307,7 @@ def collect_pageviews_by_source(keyword_dict, keyword, row, source_domain_mappin
 if __name__ == '__main__':
     t_start = time.time()
     date = None
-    date = '2021-11-28' ## None: assign today
+    # date = '2021-12-05' ## None: assign today
     is_UTC0 = check_is_UTC0()
     hour_now = get_hour(is_UTC0=is_UTC0)
     if (hour_now == 3):
