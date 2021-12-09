@@ -1,19 +1,22 @@
+import os.path
+
 from fastapi import FastAPI
 from gensim_compose.embedding import Composer
+from definitions import ROOT_DIR
 import jieba
 import jieba.analyse
 import uvicorn
-
 app = FastAPI()
-print(f"start api server")
+# print(f"start api server")
 ## jieba config
 composer = Composer()
 composer.set_config()  ## add all user dictionary (add_words, google_trend, all_hashtag)
 stopwords = composer.get_stopword_list()
-
+ROOT_DIR = ROOT_DIR
 
 @app.get("/cut")
 def cut(s: str=''):
+    global composer
     if s=='':
         return {"message": "no sentence input", "data": ""}
     else:
@@ -25,6 +28,7 @@ def cut(s: str=''):
 
 @app.get("/keyword")
 def keyword_extraction(s: str='', topK: int=10):
+    global composer, stopwords
     if s=='':
         return {"message": "no sentence input", "data": ""}
     else:
@@ -61,11 +65,12 @@ def stop_word(s: str='', s_join: str=None, sep: str=','):
 
 @app.get("/word/stop")
 def show_stopword():
+    global stopwords
     return {"message": "show current stop words", "data": stopwords}
 
 @app.put("/word/init")
 def init_config():
-    global stopwords
+    global stopwords, composer
     ## init dictionary
     composer.set_config()  ## add all user dictionary (add_words, google_trend, all_hashtag)
     stopwords = composer.get_stopword_list()
@@ -73,13 +78,41 @@ def init_config():
 
 @app.put("/word/stop/init")
 def init_stopword(s_join: str=None, sep: str=','):
-    global stopwords
+    global stopwords, composer
     stopwords.clear()
     if s_join:
         stopwords = s_join.split(sep=sep)
     else:
         stopwords = composer.get_stopword_list()
     return {"message": "finish resetting stop words"}
+
+
+@app.put("/model/load")
+def load_model(model_name: str='word2vec_zhonly_remove_one_v150m3w5.model'):
+    global composer, ROOT_DIR
+    path_model = os.path.join(ROOT_DIR, 'gensim_compose', model_name) ##'./gensim_compose/word2vec_zhonly_remove_one_v300m10w5.model'
+    composer.load_model(path=path_model)
+    return {"message": "finish loading word embedding model"}
+
+@app.put("/model/release")
+def release_model():
+    global composer
+    del composer.model
+    return {"message": "finish releasing model"}
+
+@app.get("/similarity")
+def cosine_similarity(s1: str=None, s2: str=None):
+    global composer
+    ## load model if not loaded
+    if not hasattr(composer, 'model'):
+        model_name = 'word2vec_zhonly_remove_one_v150m3w5.model'
+        path_model = os.path.join(ROOT_DIR, 'gensim_compose', model_name)
+        composer.load_model(path=path_model)
+    if s1 and s2:
+        sim = composer.similarity(s1, s2, default=0)
+        return {"message": f"cosine similarity of {s1} and {s2}", "data": sim}
+    else:
+        return {"message": "Please enter both s1 and s2", "data": 0}
 
 
 if __name__ == "__main__":
