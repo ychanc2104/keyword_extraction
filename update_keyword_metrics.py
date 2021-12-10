@@ -1,9 +1,9 @@
-from gAPI.gtrend import gtrend
 from db.mysqlhelper import MySqlHelper
 from gAPI.gconsole import GoogleSearchConsole
 from basic.date import get_today, get_date_shift, check_is_UTC0, datetime_to_str
 from basic.decorator import timing
 import pandas as pd
+from definitions import ROOT_DIR
 
 ## generate keyword metrics and save to normal and historical table
 def save_keyword_metrics(keyword_list):
@@ -77,12 +77,11 @@ def fetch_new_gconsole_keywords():
     return keyword_list
 
 
-def save_init_monthly_keyword_metrics():
-    date_start = '2021-01-01'
-    is_UTC0 = check_is_UTC0()
+def save_init_monthly_keyword_metrics(n=300):
+
     keyword_list_gtrend = fetch_new_gtrend_keywords()
     keyword_list_gconsole = fetch_new_gconsole_keywords()
-    keyword_list = list(set(keyword_list_gtrend + keyword_list_gconsole))[:300]
+    keyword_list = list(set(keyword_list_gtrend + keyword_list_gconsole))[:n]
 
     df_monthly_keyword_metrics = GoogleSearchConsole()._generate_12month_keyword_metrics(keyword_list, path_ads_config='./gAPI/google-ads.yaml')
     df_monthly_keyword_metrics = add_unavailable(keyword_list, df_monthly_keyword_metrics)
@@ -113,23 +112,59 @@ def add_unavailable(keyword_list, df_monthly_keyword_metrics):
     df = df_monthly_keyword_metrics.append(df_add).fillna(1)
     return df
 
+
+def save_latest_month_keyword_metrics(n=50):
+    month = get_today(check_is_UTC0()).month
+    keyword_list = fetch_update_keywords(n=n)
+    path_ads_config = f"{ROOT_DIR}/gAPI/google-ads.yaml"
+    df_monthly_keyword_metrics = GoogleSearchConsole()._generate_12month_keyword_metrics(keyword_list, path_ads_config=path_ads_config)
+    df_month_keyword_metrics = df_monthly_keyword_metrics.query(f"month=={month-1}")
+    query = MySqlHelper.generate_update_SQLquery(df_monthly_keyword_metrics, 'google_ads_metrics_history')
+    ## save to metrics tables
+    MySqlHelper('roas_report').ExecuteUpdate(query, df_month_keyword_metrics.to_dict('records'))
+    return keyword_list, df_month_keyword_metrics
+
+
+def fetch_update_keywords(n=50):
+    today = get_today(check_is_UTC0())
+    year = today.year
+    month = today.month
+    query = f"""
+            SELECT 
+                keyword_ask
+            FROM
+                roas_report.google_ads_metrics_history
+            WHERE
+                year = {year} AND month = {month-2}
+                    AND keyword_ask NOT IN (SELECT 
+                        keyword_ask
+                    FROM
+                        google_ads_metrics_history
+                    WHERE
+                        year = {year} AND month = {month-1})
+            ORDER BY monthly_traffic DESC LIMIT {n}
+            """
+    print(query)
+    data = MySqlHelper("roas_report").ExecuteSelect(query)
+    keyword_list = list(set([d[0] for d in data]))
+    return keyword_list
+
+
 ## update rate: twice per day (13:30, 23:30)
 if __name__ == '__main__':
     ## setting parameters
     # is_UTC0 = check_is_UTC0()
     # date_start = get_date_shift(get_today(is_UTC0=is_UTC0), days=1)
     # ###################################
-    # # ## for google trend table
-    # keyword_list_gtrend = fetch_new_gtrend_keywords()
-    # # # df_gtrend_keyword_metrics, df_gtrend_monthly_keyword_metrics = save_keyword_metrics(keyword_list_gtrend)
-    # # ###################################
-    # # ## for google search_console table
-    # keyword_list_gconsole = fetch_new_gconsole_keywords()
-    # # df_gconsole_keyword_metrics, df_gconsole_monthly_keyword_metrics = save_keyword_metrics(keyword_list_gconsole)
+    # path_ads_config = f"{ROOT_DIR}/gAPI/google-ads.yaml"
+    # df_monthly_keyword_metrics = GoogleSearchConsole()._generate_12month_keyword_metrics(['五倍卷'],
+    #                                                                                     path_ads_config=path_ads_config)
 
     ################ init table, google_ads_metrics_history ###################
-    keyword_list, df = save_init_monthly_keyword_metrics()
-    ################ init table, google_ads_metrics_history ###################
+    keyword_list, df = save_init_monthly_keyword_metrics(n=100) #100
+    ################ update latest month into table, google_ads_metrics_history ###################
+    keyword_list_update, df_update = save_latest_month_keyword_metrics(n=250) #250
+
 
     ###################################
     # ## for google trend table
