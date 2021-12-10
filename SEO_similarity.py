@@ -40,8 +40,8 @@ def Extract_valid_keyword(criteria_score, criteria_cosine, date_save):
     return df_result
 
 
-def Calc_similarity(composer, path_model, keyword_row, keyword_col, weight_sim=1, weight_dis=1):
-    composer.load_model(path=path_model)
+def Calc_similarity(composer, keyword_row, keyword_col, weight_sim=1, weight_dis=1):
+    # composer.load_model(path=path_model)
     similarity_matrix = np.array([[composer.similarity(k_gtrend, k_ecom) for k_gtrend
                                    in keyword_col] for k_ecom in keyword_row])
     print('finish building word embedding cosine similarity matrix')
@@ -180,6 +180,9 @@ if __name__ == '__main__':
     composer.set_config()  ## add all user dictionary (add_words, google_trend, all_hashtag)
     stopwords = composer.get_stopword_list()
     stopwords_SEO = composer.read_file('./jieba_based/stop_words_SEO.txt')
+    ## pre-load model
+    path_model = './gensim_compose/word2vec_zhonly_remove_one_v150m3w5.model'  ##'./gensim_compose/word2vec_zhonly_remove_one_v300m10w5.model'
+    composer.load_model(path=path_model)
 
     yesterday = get_yesterday(check_is_UTC0())
     date_list = [yesterday]
@@ -196,20 +199,19 @@ if __name__ == '__main__':
             keyword_list_ecom = list(set(df_ecom_keyword.keyword))
 
             ## get similarity matrix
-            path_model = './gensim_compose/word2vec_zhonly_remove_one_v300m20w10.model'  ##'./gensim_compose/word2vec_zhonly_remove_one_v300m10w5.model'
             weight_sim, weight_dis = 1, 1
-            df_score, df_score_cosine, df_score_damerau = Calc_similarity(composer, path_model, keyword_row=keyword_list_ecom,
+            df_score, df_score_cosine, df_score_damerau = Calc_similarity(composer, keyword_row=keyword_list_ecom,
                                                 keyword_col=keyword_list_gtrend, weight_sim=weight_sim, weight_dis=weight_dis)
 
             ## build result Dataframe
-            criteria_score, criteria_cosine = 0.1, 0.7 ## 0.1, 0.7
+            criteria_score, criteria_cosine = 0.1, 0.66 ## 0.1, 0.7
             df_result = Extract_valid_keyword(criteria_score, criteria_cosine, date)
 
             ## save to db
             save_seo_sim_products(df_result)
 
     ## delete data when date < today-90
-    Remove_expired_rows(n_day=90)
+    # Remove_expired_rows(n_day=90)
 
 
 
