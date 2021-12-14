@@ -156,7 +156,7 @@ class GoogleTrend:
         df['relatedQueries'] = queries
         return df
     ## timeframe range limit, ex: 2021-10-22 2021-10-25 (4 days)
-    def fetch_keyword_expore(self, keyword, gprop='', category=0, timeframe='today 1-m'):
+    def fetch_keyword_explore(self, keyword, gprop='', category=0, timeframe='today 1-m'):
         """
         get popular queries in 'web', 'images', 'news', 'youtube', 'froogle'
         Parameters
@@ -195,10 +195,13 @@ class GoogleTrend:
             response = requests.get(url)
             if dict_name[i] == 'MultiLine':
                 df_multiline = pd.DataFrame(json.loads(re.sub(r'\)\]\}\',\n', '', response.text))['default']['timelineData'])
-                response_all[dict_name[i]] = self._reformat_value(df_multiline)
+                # response_all[dict_name[i]] = self._reformat_value(df_multiline)
+                response_all[dict_name[i]] = self._reformat_cols(df_multiline, cols=['value', 'hasData', 'formattedValue'])
             elif dict_name[i] == 'ComparedGEO':
                 df_geo = pd.DataFrame(json.loads(re.sub(r'\)\]\}\',\n', '', response.text))['default']['geoMapData'])
-                response_all[dict_name[i]] = self._reformat_value(df_geo)
+                # response_all[dict_name[i]] = self._reformat_value(df_geo)
+                response_all[dict_name[i]] = self._reformat_cols(df_geo, cols=['value', 'hasData', 'formattedValue'])
+
             else:
                 df_hot = pd.DataFrame(json.loads(re.sub(r'\)\]\}\',\n', '', response.text))['default']['rankedList'][0]['rankedKeyword']) #popular topics or queries
                 df_up  = pd.DataFrame(json.loads(re.sub(r'\)\]\}\',\n', '', response.text))['default']['rankedList'][1]['rankedKeyword']) #increasing topics or queries
@@ -206,6 +209,59 @@ class GoogleTrend:
                     response_all[dict_name[i]] = {'hot': self._reshape_topic(df_hot), 'up': self._reshape_topic(df_up)}
                 else:
                     response_all[dict_name[i]] = {'hot': df_hot, 'up': df_up}
+        return response_all
+
+    ## timeframe range limit, ex: 2021-10-22 2021-10-25 (4 days)
+    def fetch_keyword_list_explore(self, keyword_list, gprop='', category=0, timeframe='today 1-m'):
+        """
+        get popular queries in 'web', 'images', 'news', 'youtube', 'froogle'
+        Parameters
+        ----------
+        keyword_list: ['a', 'b', ...]
+        gprop: ''(web), 'images', 'news', 'youtube', 'froogle'
+        category: 0 to fetch token
+        timeframe: 'today 1-m', 'today 12-m', '2021-10-22 2021-10-22'
+
+        Returns:
+            two dict, 'MultiLine', 'ComparedGEO'
+        -------
+
+        """
+        """Create the payload for related queries, interest over time and interest by region"""
+        if gprop not in ['', 'images', 'news', 'youtube', 'froogle']:
+            raise ValueError('gprop must be empty (to indicate web), images, news, youtube, or froogle')
+        payload_keyword_list = []
+        for keyword in keyword_list:
+            payload_keyword_list += [{'keyword':keyword, 'geo':self.geo, 'time':timeframe}]
+        self.token_payload = {
+            'hl': self.language,
+            'tz': self.tz,
+            'req': {'comparisonItem': payload_keyword_list, 'category': category, 'property': gprop}
+        }
+        self.token_payload['req'] = json.dumps(self.token_payload['req']) ## dict to string
+        self.widget_dicts_list = self.TrendReq._get_data(
+            url=self.GENERAL_URL,
+            method='get',
+            params=self.token_payload,
+            trim_chars=4,
+        )['widgets'] ## get four objects, 1.multiline, 2.comparedgeo, 3.related topics, 4.related queries
+
+        response_all = {}
+        dict_name = ['MultiLine', 'ComparedGEO'] ## MultiLine * 1, ComparedGEO * 1,
+        for i in range(2):
+            print(f"finish {i}")
+            widget_dicts = self.widget_dicts_list[i]
+            req = widget_dicts['request']
+            url = self.build_request_url(self.url_list[i], ['hl', 'tz', 'req', 'token'],
+                                         [self.language, self.tz, req, widget_dicts['token']])
+            response = requests.get(url)
+            self.response = response
+            if dict_name[i] == 'MultiLine':
+                df_multiline = pd.DataFrame(json.loads(re.sub(r'\)\]\}\',\n', '', response.text))['default']['timelineData'])
+                response_all[dict_name[i]] = self._reformat_cols_list(df_multiline, cols=['value', 'hasData', 'formattedValue'], names=keyword_list, cols_drop=['value', 'hasData', 'formattedValue'])
+            elif dict_name[i] == 'ComparedGEO':
+                df_geo = pd.DataFrame(json.loads(re.sub(r'\)\]\}\',\n', '', response.text))['default']['geoMapData'])
+                response_all[dict_name[i]] = self._reformat_cols_list(df_geo, cols=['value', 'hasData', 'formattedValue'], names=keyword_list, cols_drop=['value', 'hasData', 'formattedValue'])
         return response_all
 
     @staticmethod
@@ -224,12 +280,25 @@ class GoogleTrend:
         df['value'] = [value[0] for value in df.value.values]
         return df
 
+    @staticmethod
+    def _reformat_cols(df, cols):
+        for col in cols:
+            df[col] = [value[0] for value in df[col].values]
+        return df
+
+    @staticmethod
+    def _reformat_cols_list(df, cols, names, cols_drop):
+        for col in cols:
+            for i,name in enumerate(names):
+                col_new = f"{col}_{name}"
+                df[col_new] = [value[i] for value in df[col].values]
+        return df.drop(columns=cols_drop, inplace=False)
+
     def build_request_url(self, url, params_name_list, params_value_list):
         url += '?'
         for name, value in zip(params_name_list,params_value_list):
             url += f'{name}={value}&'
         return url[:-1]
-
 
     def remove_repeat(self, df, columns=['keyword', 'traffic', 'date']):
         series_join = (df['keyword'] + ',' + df['traffic'].astype('string') + ',' + df['date']).unique()
@@ -249,16 +318,26 @@ class GoogleTrend:
 if __name__ == '__main__':
 
 
-    gtrend = gtrend()
-    response_all = gtrend.fetch_keyword_expore(keyword='公投', gprop='',timeframe='today 12-m')
+    gtrend = GoogleTrend()
 
-    df_multiline = response_all['MultiLine']
-    df_geo = response_all['ComparedGEO']
-    df_topic_hot, df_topic_up = response_all['SearchTopic']['hot'], response_all['SearchTopic']['up']
-    df_query_hot, df_query_up = response_all['SearchQuery']['hot'], response_all['SearchQuery']['up']
+    #
+    # response_all = gtrend.fetch_keyword_explore(keyword='公投', gprop='',timeframe='2021-10-01 2021-12-10')
+    # df_multiline = response_all['MultiLine']
+    # df_geo = response_all['ComparedGEO']
+    # df_topic_hot, df_topic_up = response_all['SearchTopic']['hot'], response_all['SearchTopic']['up']
+    # df_query_hot, df_query_up = response_all['SearchQuery']['hot'], response_all['SearchQuery']['up']
 
-    gtrend.save_multi_df(name_list=['trend','geo','topic_hot','topic_up','query_hot','query_up'],
-                         df_list=[df_multiline, df_geo, df_topic_hot, df_topic_up, df_query_hot, df_query_up])
+    # a= GoogleTrend._reformat_cols(df_multiline, cols=['value', 'hasData', 'formattedValue'])
+    response_list = gtrend.fetch_keyword_list_explore(keyword_list=['藻 礁','公投 綁 大選','萊 豬','核 四'], gprop='',timeframe='2021-10-01 2021-12-10')
+    # gtrend.save_multi_df(name_list=['trend','geo','topic_hot','topic_up','query_hot','query_up'],
+    #                      df_list=[df_multiline, df_geo, df_topic_hot, df_topic_up, df_query_hot, df_query_up])
+    # keyword_list = ['藻 礁', '公投 綁 大選', '萊 豬', '核 四']
+    # response = response_list[0]
+    # df_multiline_2 = pd.DataFrame(json.loads(re.sub(r'\)\]\}\',\n', '', response.text))['default']['timelineData'])
+    # # # df_multiline_3 = GoogleTrend._reformat_value(df_multiline)
+    #
+    # df_multiline_3 = GoogleTrend._reformat_cols_list(df_multiline_2, cols=['value', 'hasData', 'formattedValue'], names=keyword_list, cols_drop=['value', 'hasData', 'formattedValue'])
+    # #
 
     # df = response_all['MultiLine']
     # df['value'] = [value[0] for value in df.value.values]

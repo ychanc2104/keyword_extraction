@@ -1,6 +1,7 @@
 import pandas as pd
 from basic.date import get_today, datetime_to_str
 from google.ads.googleads.client import GoogleAdsClient
+from definitions import ROOT_DIR
 
 # Location IDs are listed here:
 # https://developers.google.com/google-ads/api/reference/data/geotargets
@@ -11,13 +12,14 @@ _DEFAULT_LOCATION_IDS = ["1023191"]  # location ID for New York, NY
 # information on determining this value, see the below link:
 # https://developers.google.com/google-ads/api/reference/data/codes-formats#expandable-7
 _DEFAULT_LANGUAGE_ID = "1000"  # language ID for English
-
+## update latest month on 10th day
 class GoogleAds:
-    def __init__(self, path_ads_config='google-ads.yaml', location_ids=['9075967'], language_id='1018', customer_id='6553682300'):
+    def __init__(self, config_name='google-ads.yaml', location_ids=['9075967'], language_id='1018', customer_id='6553682300'):
         self.location_ids = location_ids  ## Taiwan: 9075967 (TW)
         self.language_id = language_id  ## zh_TW
         self.customer_id = customer_id
-        self.client = GoogleAdsClient.load_from_storage(version="v8", path=path_ads_config)
+        self.path_ads_config = f"{ROOT_DIR}/gAPI/{config_name}"
+        self.client = GoogleAdsClient.load_from_storage(version="v8", path=self.path_ads_config)
         self.month_mapping = {'JANUARY':'01', 'FEBRUARY':'02', 'MARCH':'03', 'APRIL':'04', 'MAY':'05', 'JUNE':'06',
                               'JULY':'07', 'AUGUST':'08', 'SEPTEMBER':'09', 'OCTOBER':'10', 'NOVEMBER':'11', 'DECEMBER':'12'}
         self.keyword_competition_levels = ['HIGH', 'MEDIUM', 'LOW', 'UNKNOWN', 'UNSPECIFIED']
@@ -96,7 +98,7 @@ class GoogleAds:
                                         'low_price': low_price, 'high_price': high_price, 'monthly_traffic': monthly_traffic,
                                         'avg_monthly_traffic': avg_monthly_traffic, 'year':year, 'month':month, 'date': date}
                     i += 1
-        self.idea = idea
+        self.idea = keyword_ideas
         df = pd.DataFrame.from_dict(keywords_info, "index")
         return df
 
@@ -221,7 +223,7 @@ if __name__ == "__main__":
 
     gad = GoogleAds()
     # df = gad.get_keyword_info('湖人')
-    df2 = gad.get_keyword_list_monthly_info(['iphone', '空壓殼'])
+    df2 = gad.get_keyword_list_monthly_info(['虎豹潭'])
 
 
     # idea = gad.idea

@@ -144,10 +144,10 @@ class GoogleSearchConsole(GoogleOAuth2):
         return dict_map
 
 
-    def _generate_keyword_metrics(self, keyword_list, path_ads_config):
+    def _generate_keyword_metrics(self, keyword_list):
         n_keyword = len(keyword_list)
         indexes = np.append(np.arange(0, n_keyword, 20), n_keyword)
-        google_ad = GoogleAds(path_ads_config=path_ads_config)
+        google_ad = GoogleAds()
         df_keywords_metrics = pd.DataFrame()
         for i in range(len(indexes)-1):
             keyword_list_sub = keyword_list[indexes[i]: indexes[i+1]]
@@ -155,10 +155,10 @@ class GoogleSearchConsole(GoogleOAuth2):
             df_keywords_metrics = df_keywords_metrics.append(google_ad.get_keyword_list_info(keyword_list_sub))
         return df_keywords_metrics
 
-    def _generate_12month_keyword_metrics(self, keyword_list, path_ads_config):
+    def _generate_12month_keyword_metrics(self, keyword_list):
         n_keyword = len(keyword_list)
         indexes = np.append(np.arange(0, n_keyword, 20), n_keyword)
-        google_ad = GoogleAds(path_ads_config=path_ads_config)
+        google_ad = GoogleAds()
         df_keywords_metrics = pd.DataFrame()
         for i in range(len(indexes)-1):
             keyword_list_sub = keyword_list[indexes[i]: indexes[i+1]]

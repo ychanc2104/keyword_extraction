@@ -12,7 +12,7 @@ def save_keyword_metrics(keyword_list):
     year, month = today.year, today.month
 
     # df_keyword_metrics = GoogleSearchConsole()._generate_keyword_metrics(keyword_list, path_ads_config='./gAPI/google-ads.yaml')
-    df_monthly_keyword_metrics = GoogleSearchConsole()._generate_12month_keyword_metrics(keyword_list, path_ads_config='./gAPI/google-ads.yaml')
+    df_monthly_keyword_metrics = GoogleSearchConsole()._generate_12month_keyword_metrics(keyword_list)
     df_monthly_keyword_metrics = df_monthly_keyword_metrics.query(f"year=='{year}' and month=='{month-1}'")
     df_keyword_metrics = df_monthly_keyword_metrics.query(f"year=='{year}' and month=='{month}'").drop(columns=['monthly_traffic', 'year', 'month'])
     df_keyword_metrics['date'] = [datetime_to_str(today)] * df_keyword_metrics.shape[0]
@@ -83,7 +83,7 @@ def save_init_monthly_keyword_metrics(n=300):
     keyword_list_gconsole = fetch_new_gconsole_keywords()
     keyword_list = list(set(keyword_list_gtrend + keyword_list_gconsole))[:n]
 
-    df_monthly_keyword_metrics = GoogleSearchConsole()._generate_12month_keyword_metrics(keyword_list, path_ads_config='./gAPI/google-ads.yaml')
+    df_monthly_keyword_metrics = GoogleSearchConsole()._generate_12month_keyword_metrics(keyword_list)
     df_monthly_keyword_metrics = add_unavailable(keyword_list, df_monthly_keyword_metrics)
     monthly_keyword_metrics_list_dict = df_monthly_keyword_metrics.to_dict('records')
     # df_keyword_metrics = df_monthly_keyword_metrics.drop(columns=['monthly_traffic', 'year', 'month'])
@@ -116,13 +116,16 @@ def add_unavailable(keyword_list, df_monthly_keyword_metrics):
 def save_latest_month_keyword_metrics(n=50):
     month = get_today(check_is_UTC0()).month
     keyword_list = fetch_update_keywords(n=n)
-    path_ads_config = f"{ROOT_DIR}/gAPI/google-ads.yaml"
-    df_monthly_keyword_metrics = GoogleSearchConsole()._generate_12month_keyword_metrics(keyword_list, path_ads_config=path_ads_config)
-    df_month_keyword_metrics = df_monthly_keyword_metrics.query(f"month=={month-1}")
-    query = MySqlHelper.generate_update_SQLquery(df_monthly_keyword_metrics, 'google_ads_metrics_history')
-    ## save to metrics tables
-    MySqlHelper('roas_report').ExecuteUpdate(query, df_month_keyword_metrics.to_dict('records'))
-    return keyword_list, df_month_keyword_metrics
+    df_monthly_keyword_metrics = GoogleSearchConsole()._generate_12month_keyword_metrics(keyword_list)
+    if df_monthly_keyword_metrics.shape[0] == 0:
+        print("Today's budget is ran out")
+        return keyword_list, []
+    else:
+        df_month_keyword_metrics = df_monthly_keyword_metrics.query(f"month=={month-1}")
+        query = MySqlHelper.generate_update_SQLquery(df_monthly_keyword_metrics, 'google_ads_metrics_history')
+        ## save to metrics tables
+        MySqlHelper('roas_report').ExecuteUpdate(query, df_month_keyword_metrics.to_dict('records'))
+        return keyword_list, df_month_keyword_metrics
 
 
 def fetch_update_keywords(n=50):
@@ -135,13 +138,13 @@ def fetch_update_keywords(n=50):
             FROM
                 roas_report.google_ads_metrics_history
             WHERE
-                year = {year} AND month = {month-2}
+                year = {year} AND month = {month-2} AND google_available = 1
                     AND keyword_ask NOT IN (SELECT 
                         keyword_ask
                     FROM
                         google_ads_metrics_history
                     WHERE
-                        year = {year} AND month = {month-1})
+                        year = {year} AND month = {month-1} AND google_available = 1)
             ORDER BY monthly_traffic DESC LIMIT {n}
             """
     print(query)
@@ -163,7 +166,7 @@ if __name__ == '__main__':
     ################ init table, google_ads_metrics_history ###################
     keyword_list, df = save_init_monthly_keyword_metrics(n=100) #100
     ################ update latest month into table, google_ads_metrics_history ###################
-    keyword_list_update, df_update = save_latest_month_keyword_metrics(n=250) #250
+    keyword_list_update, df_update = save_latest_month_keyword_metrics(n=260) #250
 
 
     ###################################
