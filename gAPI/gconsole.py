@@ -39,7 +39,8 @@ class GoogleSearchConsole(GoogleOAuth2):
     def save_to_page_query_table(self, web_id, date_start, date_end, siteUrl, rowLimit=25000):
         df_search_console_page_query = self.fetch_search_console(web_id, date_start, date_end, siteUrl,
                                                      rowLimit=rowLimit, dimensions=['query', 'page', 'date'])
-        df_search_console_page_query = self.reformat_title_from_url(df_search_console_page_query, is_page_query=True)
+        if df_search_console_page_query.shape[0] != 0:
+            df_search_console_page_query = self.reformat_title_from_url(df_search_console_page_query, is_page_query=True)
 
         search_console_query_list_dict = df_search_console_page_query.to_dict('records')
         query_pg = MySqlHelper.generate_update_SQLquery(df_search_console_page_query, 'google_search_console_page_query')
@@ -60,7 +61,8 @@ class GoogleSearchConsole(GoogleOAuth2):
 
     def save_to_page_table(self, web_id, date_start, date_end, siteUrl, rowLimit=25000):
         df_search_console_page = self.fetch_search_console(web_id, date_start, date_end, siteUrl, rowLimit=rowLimit, dimensions=['page', 'date'])
-        df_search_console_page = self.reformat_title_from_url(df_search_console_page, is_page_query=False)
+        if df_search_console_page.shape[0] != 0:
+            df_search_console_page = self.reformat_title_from_url(df_search_console_page, is_page_query=False)
 
         search_console_page_list_dict = df_search_console_page.to_dict('records')
         query = "REPLACE INTO google_search_console_page (web_id, clicks, impressions, position, page, date) VALUES (:web_id, :clicks, :impressions, :position, :page, :date)"
@@ -89,7 +91,11 @@ class GoogleSearchConsole(GoogleOAuth2):
         }
         response = service.searchanalytics().query(
             siteUrl=siteUrl, body=request).execute()
-        data = response['rows']
+        self.response = response
+        if 'rows' in response.keys():
+            data = response['rows']
+        else:
+            data = []
         data_decompose = {}
         for i, d in enumerate(data):
             # query, device, date, url_page = d['keys']
@@ -189,11 +195,13 @@ if __name__ == '__main__':
     # date_end = '2021-11-10'
 
     ############### init db ###############
-    web_id = 'i3fresh'
-    siteUrl = 'https://i3fresh.tw/'
-    date_start = '2021-11-09'
-    date_end = '2021-11-09'
+    web_id = 'draimior'
+    siteUrl = 'https://www.draimior-global.com/'
+    date_start = '2021-08-31' ## '2021-09-06'
+    date_end = '2021-09-06' ## '2021-09-30'
     g_search = GoogleSearchConsole()
+    # df_search_console_query = g_search.fetch_search_console(web_id, date_start, date_end, siteUrl,
+    #                                                  rowLimit=25000, dimensions=['query', 'date', 'country', 'device'])
     g_search.save_4db_by_date(web_id, siteUrl, date_start, date_end)
     ############### init db ###############
 
