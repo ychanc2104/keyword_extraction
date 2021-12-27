@@ -1,6 +1,7 @@
 import datetime
 import socket
 import time
+import numpy as np
 
 def to_datetime(date):
     if type(date) == str:
@@ -91,6 +92,11 @@ def check_is_UTC0():
 def date_range(date_start, num_days):
     date_list = [to_datetime(date_start) + datetime.timedelta(days=x) for x in range(num_days)]
     return date_list
+
+def datetime_range(date_start, num_days=1, hour_sep=2):
+    n = num_days * int(np.ceil(24/hour_sep)) + 1
+    datetime_list = [to_datetime(date_start) + datetime.timedelta(hours=hour_sep*x) for x in range(n)]
+    return datetime_list
 
 ## 1970-01-01 0:00:00 => 0
 def date_to_timestamp(date):
