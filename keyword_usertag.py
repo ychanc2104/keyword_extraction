@@ -23,12 +23,13 @@ def clean_keyword_list(keyword_list, stopwords, stopwords_usertag):
     return keyword_list
 
 @timing
-def fetch_usertag_web_id():
-    query = "SELECT web_id FROM web_id_table where usertag_keyword_enable=1"
+def fetch_usertag_web_id_ex_day():
+    query = "SELECT web_id, usertag_keyword_expired_day FROM web_id_table where usertag_keyword_enable=1"
     print(query)
     data = MySqlHelper('dione').ExecuteSelect(query)
     web_id_all = [d[0] for d in data]
-    return web_id_all
+    expired_day_all = [d[1] for d in data]
+    return web_id_all, expired_day_all
 
 @timing
 def fetch_browse_record_yesterday_join(web_id, is_df=False, is_UTC0=False):
@@ -67,7 +68,7 @@ def fetch_browse_record_yesterday_join(web_id, is_df=False, is_UTC0=False):
 @timing
 def fetch_browse_record_join(web_id, date, is_df=False):
     date_start = to_datetime(date)
-    date_end = date_start - datetime.timedelta(days=-1, seconds=1)
+    date_end = date_start - datetime.timedelta(days=-1, seconds=1)  ## pixnet, upmedia, ctnews, cmoney,
     query = \
         f"""
             SELECT 
@@ -105,20 +106,24 @@ if __name__ == '__main__':
     is_UTC0 = check_is_UTC0()
     jump2gcp = True
     date = get_yesterday(is_UTC0=is_UTC0) ## compute all browsing record yesterday ad 3:10 o'clock
-    # date = '2021-12-02'
+    # date = '2021-12-29'
     # set up config (add word, user_dict.txt ...)
     jieba_base = Composer_jieba()
     all_hashtag = jieba_base.set_config()
     stopwords = jieba_base.get_stopword_list()
     stopwords_usertag = jieba_base.read_file('./jieba_based/stop_words_usertag.txt')
-    web_id_all = fetch_usertag_web_id()
-    # web_id_all = ['btnet']
+
+    web_id_all, expired_day_all = fetch_usertag_web_id_ex_day()
+    # web_id_all = ['mirrormedia']
+    # expired_day_all = [21]
     ## get expired_date
-    expired_date = get_date_shift(date_ref=date, days=-4, to_str=True, is_UTC0=is_UTC0) ## set to today + 3 (yesterday+4), preserve 4 days
+    # expired_date = get_date_shift(date_ref=date, days=-4, to_str=True, is_UTC0=is_UTC0) ## set to today + 3 (yesterday+4), preserve 4 days
     t_start_outloop = time.time()
-    for web_id in web_id_all:
+    for web_id, expired_day in zip(web_id_all, expired_day_all):
         ## fetch subscribed browse record
         # data = fetch_browse_record_yesterday_join(web_id, is_df=False, is_UTC0=is_UTC0)
+        expired_date = get_date_shift(date_ref=date, days=-expired_day, to_str=True,
+                                      is_UTC0=is_UTC0)  ## set to today + 3 (yesterday+4), preserve 4 days
         data = fetch_browse_record_join(web_id, date=date, is_df=False)
         if len(data) == 0:
             print('no valid data in dione.subscriber_browse_record')
@@ -162,7 +167,7 @@ if __name__ == '__main__':
         query = MySqlHelper.generate_update_SQLquery(df_map_save, 'usertag')
         MySqlHelper('missioner', is_ssh=jump2gcp).ExecuteUpdate(query, usertag_list_dict)
         ## delete expired data
-        delete_expired_rows(web_id, table='usertag', is_UTC0=is_UTC0, jump2gcp=jump2gcp)
+        # delete_expired_rows(web_id, table='usertag', is_UTC0=is_UTC0, jump2gcp=jump2gcp)
 
         ### prepare keyword_usertag_report
         df_freq_token = keyword_usertag_report(web_id, expired_date, usertag_table='usertag', report_table='usertag_report', is_UTC0=is_UTC0, jump2gcp=jump2gcp)
