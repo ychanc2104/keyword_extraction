@@ -10,6 +10,25 @@ class MySqlHelper:
         self.CONN_INFO = CONN_INFO
         self.is_ssh = is_ssh
 
+    def ExecuteDelete(self, query, disconnect=False):
+        '''
+            输入非查詢SQL語句
+            输出：受影響的行數
+        '''
+        count = 0
+        try:
+            result = self.sql_connector.execute_raw_sql(query)
+            count = result.rowcount
+        except Exception as e:
+            self.logger.info(e)
+            self.sql_connector.get_session().rollback()
+        else:
+            self.sql_connector.get_session().commit()
+        if disconnect:
+            self.sql_connector.get_session().get_bind().close()
+            self.sql_connector.get_session().close()
+        return count
+
     def ExecuteUpdate(self, *entities, **kwargs):
         '''
             输入非查詢SQL語句
@@ -66,6 +85,10 @@ class MySqlHelper:
         self.sql_connector.get_session().get_bind().close()
         self.sql_connector.get_session().close()
         return data
+
+    def close_sql_session(self):
+        self.sql_connector.get_session().get_bind().close()
+        self.sql_connector.get_session().close()
 
     ## support INSERT and REPLACE INTO
     @staticmethod

@@ -111,22 +111,25 @@ def fetch_date_usertag_meet_criteria(web_id, n_limit=100):
 def delete_usertag_meet_criteria(web_id, n_limit=100):
     data_dict = fetch_date_usertag_meet_criteria(web_id, n_limit)
     uuid_list = data_dict.keys()
+    ## build connect session
+    missioner = MySqlHelper('missioner', is_ssh=jump2gcp)
     for uuid in uuid_list:
         date_limit, hour_limit = data_dict[uuid]['date'], data_dict[uuid]['hour']
         date_limit_2 = get_date_shift(date_ref=date_limit,days=1,to_str=True)
         #### delete usertag_uuid_stat table
         ## delete same day
-        query_stat_1 = f"delete from usertag_uuid_stat where uuid='{uuid}' and date<='{date_limit}' and hour<{hour_limit} and web_id='{web_id}'"
+        query_stat_1 = f"delete from usertag_uuid_stat where date<='{date_limit}' and uuid='{uuid}' and web_id='{web_id}' and hour<{hour_limit}"
         print(query_stat_1)
-        MySqlHelper('missioner', is_ssh=jump2gcp).ExecuteUpdate(query_stat_1)
+        missioner.ExecuteDelete(query_stat_1)
         ## delete date <= date_limit_2
-        query_stat_2 = f"delete from usertag_uuid_stat where uuid='{uuid}' and date<='{date_limit_2}' and web_id='{web_id}'"
-        MySqlHelper('missioner', is_ssh=jump2gcp).ExecuteUpdate(query_stat_2)
+        query_stat_2 = f"delete from usertag_uuid_stat where date<='{date_limit_2}' and uuid='{uuid}' and web_id='{web_id}'"
+        missioner.ExecuteDelete(query_stat_2)
         ## delete usertag_uuid table
-        query_uuid_1 = f"delete from usertag_uuid where uuid='{uuid}' and date<='{date_limit}' and hour<{hour_limit} and web_id='{web_id}'"
-        MySqlHelper('missioner', is_ssh=jump2gcp).ExecuteUpdate(query_uuid_1)
-        query_uuid_2 = f"delete from usertag_uuid where uuid='{uuid}' and date<='{date_limit_2}' and web_id='{web_id}'"
-        MySqlHelper('missioner', is_ssh=jump2gcp).ExecuteUpdate(query_uuid_2)
+        query_uuid_1 = f"delete from usertag_uuid where date<='{date_limit}' and uuid='{uuid}' and web_id='{web_id}' and hour<{hour_limit}"
+        missioner.ExecuteDelete(query_uuid_1)
+        query_uuid_2 = f"delete from usertag_uuid where date<='{date_limit_2}' and uuid='{uuid}' and web_id='{web_id}'"
+        missioner.ExecuteDelete(query_uuid_2)
+    return missioner
 
 #
 
@@ -142,7 +145,7 @@ if __name__ == '__main__':
     stopwords = jieba_base.get_stopword_list()
     stopwords_usertag = jieba_base.read_file('./jieba_based/stop_words_usertag.txt')
     web_id_all = ['nownews', 'ctnews', 'pixnet', 'upmedia', 'cmoney', 'mirrormedia', 'bnetx', 'managertoday', 'btnet']
-    # web_id_all = ['cmoney']
+    web_id_all = ['mirrormedia']
     t_start_outloop = time.time()
     for web_id in web_id_all:
         ## fetch subscribed browse record
@@ -211,7 +214,10 @@ if __name__ == '__main__':
             query_stat = MySqlHelper.generate_update_SQLquery(df_statistics, 'usertag_uuid_stat')
             MySqlHelper('missioner', is_ssh=jump2gcp).ExecuteUpdate(query_stat, df_statistics.to_dict('records'))
         ## delete uuid_tag exceed criteria(100)
-        delete_usertag_meet_criteria(web_id)
+        missioner = delete_usertag_meet_criteria(web_id)
+        ## close sql session
+        missioner.close_sql_session()
+
     t_end_program = time.time()
     spent_time_program = t_end_program - t_start_outloop
     print(f'One round(all web_id) spent: {spent_time_program} s')
