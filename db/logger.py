@@ -38,3 +38,6 @@ class RotatingFileWithDateHandler(RotatingFileHandler):
             self.baseFilename = "{}.log".format(self.filename_prefix)
             return 1
         return RotatingFileHandler.shouldRollover(self, record)
+
+if __name__ == '__main__':
+    x=1

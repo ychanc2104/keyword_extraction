@@ -19,3 +19,4 @@
 /gAPI/client_secrets.json
 /gAPI/authorizedcreds.dat
 /gAPI/google-ads.yaml
+/logger/slack_settings.json
