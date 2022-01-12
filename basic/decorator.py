@@ -1,7 +1,9 @@
 import time
 from logger import slackBot
+from functools import wraps
 
 def timing(func):
+    @wraps(func)
     def time_count(*args, **kwargs):
         t_start = time.time()
         values = func(*args, **kwargs)
@@ -13,6 +15,7 @@ def timing(func):
 ## log decorator with assign channel
 def logging_channels(channel_name_list):
     def logging(func):
+        @wraps(func)
         def wrapper(*args, **kwargs):
             try:
                 return func(*args, **kwargs)
@@ -26,6 +29,7 @@ def logging_channels(channel_name_list):
 
 ## log decorator
 def logging(func):
+    @wraps(func)
     def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
@@ -41,4 +45,5 @@ def divide(x,y):
     return x/y
 
 if __name__ == "__main__":
-    a = divide(10,0)
+
+    a = divide(10,1)
