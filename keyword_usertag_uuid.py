@@ -233,7 +233,6 @@ def main_keyword_uuid(web_id, date, jieba_base):
         df_statistics_save = df_statistics.query(f"num_usertag<32767")  ## smallint in SQL
         query_stat = MySqlHelper.generate_update_SQLquery(df_statistics_save, 'usertag_uuid_stat')
         MySqlHelper('missioner', is_ssh=jump2gcp).ExecuteUpdate(query_stat, df_statistics_save.to_dict('records'))
-        return df_usertag_save, df_statistics
 
 
 
@@ -253,7 +252,7 @@ if __name__ == '__main__':
     # web_id_all = ['mirrormedia']
     t_start_outloop = time.time()
     for web_id in web_id_all:
-        df_usertag_save, df_statistics = main_keyword_uuid(web_id, date, jieba_base)
+        main_keyword_uuid(web_id, date, jieba_base)
         ## delete uuid_tag exceed criteria(100)
         missioner = delete_usertag_meet_criteria(web_id)
         ## close sql session
