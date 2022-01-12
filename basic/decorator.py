@@ -17,7 +17,7 @@ def logging_channels(channel_name_list):
             try:
                 return func(*args, **kwargs)
             except Exception as e:
-                message = f"Error Message: ```{e}```\nTrigger By Function: ```{func.__name__}``` Raise Error in Path: ```{func.__code__.co_filename}```\nPlase Check"
+                message = f"Error Message: ```{e}```\nTrigger By Function: ```{func.__name__}{args}``` Raise Error in Path: ```{func.__code__.co_filename}```\nPlase Check"
                 slackBot(channel_name_list).send_message(message)
                 print(message)
         return wrapper
@@ -30,13 +30,13 @@ def logging(func):
         try:
             return func(*args, **kwargs)
         except Exception as e:
-            message = f"error message: ```{e}```\ntrigger by function: ```{func.__name__}``` raise error in path: ```{func.__code__.co_filename}```\nPlase check"
+            message = f"error message: ```{e}```\ntrigger by function: ```{func.__name__}{args}``` raise error in path: ```{func.__code__.co_filename}```\nPlase check"
             slackBot("clare_test").send_message(message)
             print(message)
     return wrapper
 
 
-@logging_channels(["clare_test", "edward_test"])
+@logging_channels(["clare_test"])
 def divide(x,y):
     return x/y
 

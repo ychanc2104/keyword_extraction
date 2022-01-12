@@ -1,15 +1,10 @@
 import pandas as pd
-import datetime
-from db.mysqlhelper import MySqlHelper
-from media.Media import Media
-from basic.date import get_date_shift, datetime_to_str, get_yesterday, to_datetime, get_today, check_is_UTC0, datetime_range
-from basic.decorator import timing
-from jieba_based.jieba_utils import Composer_jieba
-from keyword_usertag_report import keyword_usertag_report, delete_expired_rows
+from db import MySqlHelper
+from basic import logging_channels, timing, datetime_to_str, get_yesterday, check_is_UTC0, datetime_range
+from jieba_based import Composer_jieba
+from keyword_usertag_uuidSorting import keyword_usertag_sorting
 import jieba.analyse
-import numpy as np
 import time
-
 
 
 def clean_keyword_list(keyword_list, stopwords, stopwords_usertag):
@@ -108,30 +103,139 @@ def fetch_date_usertag_meet_criteria(web_id, n_limit=100):
     return data_dict
 
 @timing
+def sorting_data_dict(data_dict):
+    date_dict = {}
+    for uuid in data_dict:
+        if data_dict[uuid]['date'] not in date_dict:
+            date_dict[data_dict[uuid]['date']] = {}
+        if data_dict[uuid]['hour'] not in date_dict[data_dict[uuid]['date']]:
+            date_dict[data_dict[uuid]['date']][data_dict[uuid]['hour']] = []
+        date_dict[data_dict[uuid]['date']][data_dict[uuid]['hour']].append(uuid)
+    return date_dict
+
+
+## main for deleting uuid base usertag
+@logging_channels(["clare_test", "edward_test"])
+@timing
 def delete_usertag_meet_criteria(web_id, n_limit=100):
     data_dict = fetch_date_usertag_meet_criteria(web_id, n_limit)
-    uuid_list = data_dict.keys()
+    date_dict = sorting_data_dict(data_dict)
     ## build connect session
     missioner = MySqlHelper('missioner', is_ssh=jump2gcp)
-    for uuid in uuid_list:
-        date_limit, hour_limit = data_dict[uuid]['date'], data_dict[uuid]['hour']
-        date_limit_2 = get_date_shift(date_ref=date_limit,days=1,to_str=True)
-        #### delete usertag_uuid_stat table
-        ## delete same day
-        query_stat_1 = f"delete from usertag_uuid_stat where date<='{date_limit}' and uuid='{uuid}' and web_id='{web_id}' and hour<{hour_limit}"
-        print(query_stat_1)
-        missioner.ExecuteDelete(query_stat_1)
-        ## delete date <= date_limit_2
-        query_stat_2 = f"delete from usertag_uuid_stat where date<='{date_limit_2}' and uuid='{uuid}' and web_id='{web_id}'"
-        missioner.ExecuteDelete(query_stat_2)
-        ## delete usertag_uuid table
-        query_uuid_1 = f"delete from usertag_uuid where date<='{date_limit}' and uuid='{uuid}' and web_id='{web_id}' and hour<{hour_limit}"
-        missioner.ExecuteDelete(query_uuid_1)
-        query_uuid_2 = f"delete from usertag_uuid where date<='{date_limit_2}' and uuid='{uuid}' and web_id='{web_id}'"
+    for date_limit in date_dict:
+        for hour_limit in date_dict[date_limit]:
+            uuidList = date_dict[date_limit][hour_limit]
+            #### delete usertag_uuid_stat table
+            ## delete same day
+            query_stat_1 = f"""delete from usertag_uuid_stat where date='{date_limit}' and uuid IN ('{"','".join(uuidList)}') and web_id='{web_id}' and hour<{hour_limit}"""
+            missioner.ExecuteDelete(query_stat_1)
+            ## delete date <= date_limit_2
+            query_stat_2 = f"""delete from usertag_uuid_stat where date<'{date_limit}' and uuid IN ('{"','".join(uuidList)}') and web_id='{web_id}'"""
+            missioner.ExecuteDelete(query_stat_2)
+            ## delete usertag_uuid table
+            query_uuid_1 = f"""delete from usertag_uuid where date='{date_limit}' and uuid IN ('{"','".join(uuidList)}') and web_id='{web_id}' and hour<{hour_limit}"""
+            missioner.ExecuteDelete(query_uuid_1)
+            query_uuid_2 = f"""delete from usertag_uuid where date<'{date_limit}' and uuid IN ('{"','".join(uuidList)}') and web_id='{web_id}'"""
         missioner.ExecuteDelete(query_uuid_2)
     return missioner
 
-#
+@timing
+def fetch_usertag_uuid_web_id():
+    query = "SELECT web_id FROM web_id_table where usertag_keyword_uuid_enable=1"
+    print(query)
+    data = MySqlHelper('dione').ExecuteSelect(query)
+    web_id_all = [d[0] for d in data]
+    return web_id_all
+
+
+## main for computing uuid base usertag
+@logging_channels(["clare_test", "edward_test"])
+@timing
+def main_keyword_uuid(web_id, date, jieba_base):
+    ## fetch subscribed browse record
+    datetime_list = datetime_range(date, num_days=1, hour_sep=2)
+    for i in range(12):  ## every two hours
+        hour = 2 * i
+        data = fetch_browse_record(web_id, datetime_start=datetime_list[i], datetime_end=datetime_list[i + 1],
+                                   is_df=False)
+        print(
+            f"fetch data with datetime range from {datetime_list[i]} to {datetime_list[i + 1]}\n data size: {len(data)}")
+        if len(data) == 0:
+            print('no valid data in dione.subscriber_browse_record')
+            continue
+        ## build usertag DataFrame
+        # t_start_inloop = time.time()
+        data_save, data_stat = {}, {}
+        j = 0
+        uuidData = {}
+        for i, d in enumerate(data):
+            uuid, article_id, title, content, keywords = d
+            news = title + ' ' + content
+            ## pattern for removing https
+            news_clean = jieba_base.filter_str(news, pattern="https:\/\/([0-9a-zA-Z.\/]*)")
+            ## pattern for removing symbol, -,+~.
+            news_clean = jieba_base.filter_symbol(news_clean)
+            if (keywords == '') | (keywords == '_'):
+                keyword_list = jieba.analyse.extract_tags(news_clean, topK=8)
+                keyword_list = clean_keyword_list(keyword_list, stopwords, stopwords_usertag)
+                keywords = ','.join(keyword_list)  ## add keywords
+                is_cut = 1
+            else:
+                keyword_list = [k.strip() for k in keywords.split(',')]
+                keyword_list = clean_keyword_list(keyword_list, stopwords, stopwords_usertag)
+                is_cut = 0
+            for keyword in keyword_list:
+                # data_save[j] = {'web_id':web_id, 'uuid':uuid,
+                #                 'news':news_clean, 'keywords':keywords, 'usertag':keyword, 'article_id': article_id,
+                #                 'is_cut': is_cut, 'date': date}
+                data_save[j] = {'uuid': uuid,
+                                'usertag': keyword, 'article_id': article_id,
+                                'is_cut': is_cut, 'date': date}
+                j += 1
+            data_stat[i] = {'uuid': uuid, 'num_usertag': len(keyword_list)}
+            if uuid not in uuidData:
+                uuidData[uuid] = {'web_id': web_id, 'uuid': uuid, 'keywordList': [], 'viewArticles': 0}
+            uuidData[uuid]['keywordList'] += keyword_list
+            uuidData[uuid]['viewArticles'] += 1
+            if i % 1000 == 0:
+                print(f'finish built {i}')
+        ## merge user's keywords
+        uuidData = keyword_usertag_sorting(web_id, uuidData).fetch_uuidData()
+        uuidDict = [{"uuid": uuid, "web_id": web_id, "keywordList": str(uuidData[uuid]["keywordList"]),
+                     "keywordFreq": str(uuidData[uuid]["keywordFreq"]), "viewArticles": uuidData[uuid]["viewArticles"]}
+                    for uuid in uuidData]
+        del uuidData
+        query = ''' INSERT INTO web_push.usertag_uuid_sorted (web_id, uuid, keywordList, keywordFreq, viewArticles) VALUES (:web_id, :uuid, :keywordList, :keywordFreq, :viewArticles)
+                    ON DUPLICATE KEY UPDATE keywordList = VALUES(keywordList),
+                                            keywordFreq = VALUES(keywordFreq),
+                                            viewArticles = VALUES(viewArticles)
+                '''
+        MySqlHelper('missioner', is_ssh=jump2gcp).ExecuteUpdate(query, uuidDict)
+        ## build DataFrame
+        df_usertag = pd.DataFrame.from_dict(data_save, "index").drop_duplicates()
+        df_usertag['web_id'] = [web_id] * df_usertag.shape[0]
+        df_usertag['hour'] = [hour] * df_usertag.shape[0]
+        df_usertag['date'] = [date] * df_usertag.shape[0]
+
+        df_statistics = pd.DataFrame.from_dict(data_stat, "index")
+        ## group df_statistics
+        df_statistics = df_statistics.groupby(['uuid']).sum().reset_index()
+        df_statistics['web_id'] = [web_id] * df_statistics.shape[0]
+        df_statistics['hour'] = [hour] * df_statistics.shape[0]
+        df_statistics['date'] = [date] * df_statistics.shape[0]
+
+        ## save to db
+        # df_usertag_save = df_usertag.drop(columns=['news', 'keywords']).drop_duplicates()
+        df_usertag_save = df_usertag.drop_duplicates()
+        query = MySqlHelper.generate_update_SQLquery(df_usertag_save, 'usertag_uuid')
+        MySqlHelper('missioner', is_ssh=jump2gcp).ExecuteUpdate(query, df_usertag_save.to_dict('records'))
+
+        df_statistics_save = df_statistics.query(f"num_usertag<32767")  ## smallint in SQL
+        query_stat = MySqlHelper.generate_update_SQLquery(df_statistics_save, 'usertag_uuid_stat')
+        MySqlHelper('missioner', is_ssh=jump2gcp).ExecuteUpdate(query_stat, df_statistics_save.to_dict('records'))
+        return df_usertag_save, df_statistics
+
+
 
 if __name__ == '__main__':
     ## set is in UTC+0 or UTC+8
@@ -144,80 +248,16 @@ if __name__ == '__main__':
     all_hashtag = jieba_base.set_config()
     stopwords = jieba_base.get_stopword_list()
     stopwords_usertag = jieba_base.read_file('./jieba_based/stop_words_usertag.txt')
-    web_id_all = ['nownews', 'ctnews', 'pixnet', 'upmedia', 'cmoney', 'mirrormedia', 'bnetx', 'managertoday', 'btnet']
-    web_id_all = ['mirrormedia']
+    web_id_all = fetch_usertag_uuid_web_id()
+    # web_id_all = ['nownews', 'ctnews', 'pixnet', 'upmedia', 'cmoney', 'mirrormedia', 'bnetx', 'managertoday', 'btnet']
+    # web_id_all = ['mirrormedia']
     t_start_outloop = time.time()
     for web_id in web_id_all:
-        ## fetch subscribed browse record
-        datetime_list = datetime_range(date, num_days=1, hour_sep=2)
-        for i in range(12): ## every two hours
-            hour = 2*i
-            data = fetch_browse_record(web_id, datetime_start=datetime_list[i], datetime_end=datetime_list[i+1], is_df=False)
-            print(f"fetch data with datetime range from {datetime_list[i]} to {datetime_list[i+1]}\n data size: {len(data)}")
-            if len(data) == 0:
-                print('no valid data in dione.subscriber_browse_record')
-                continue
-            ## build usertag DataFrame
-            t_start_inloop = time.time()
-            data_save, data_stat = {}, {}
-            j = 0
-            for i, d in enumerate(data):
-                uuid, article_id, title, content, keywords = d
-                news = title + ' ' + content
-                ## pattern for removing https
-                news_clean = jieba_base.filter_str(news, pattern="https:\/\/([0-9a-zA-Z.\/]*)")
-                ## pattern for removing symbol, -,+~.
-                news_clean = jieba_base.filter_symbol(news_clean)
-                if (keywords == '') | (keywords == '_'):
-                    keyword_list = jieba.analyse.extract_tags(news_clean, topK=8)
-                    keyword_list = clean_keyword_list(keyword_list, stopwords, stopwords_usertag)
-                    keywords = ','.join(keyword_list)  ## add keywords
-                    is_cut = 1
-                else:
-                    keyword_list = [k.strip() for k in keywords.split(',')]
-                    keyword_list = clean_keyword_list(keyword_list, stopwords, stopwords_usertag)
-                    is_cut = 0
-                for keyword in keyword_list:
-                    # data_save[j] = {'web_id':web_id, 'uuid':uuid,
-                    #                 'news':news_clean, 'keywords':keywords, 'usertag':keyword, 'article_id': article_id,
-                    #                 'is_cut': is_cut, 'date': date}
-                    data_save[j] = {'uuid':uuid,
-                                    'usertag':keyword, 'article_id': article_id,
-                                    'is_cut': is_cut, 'date': date}
-                    j += 1
-                data_stat[i] = {'uuid':uuid, 'num_usertag':len(keyword_list)}
-                print(f'finish built {i}, article_id: {article_id}')
-            ## build DataFrame
-            df_usertag = pd.DataFrame.from_dict(data_save, "index").drop_duplicates()
-            df_usertag['web_id'] = [web_id] * df_usertag.shape[0]
-            df_usertag['hour'] = [hour] * df_usertag.shape[0]
-            df_usertag['date'] = [date] * df_usertag.shape[0]
-
-            df_statistics = pd.DataFrame.from_dict(data_stat, "index")
-            ## group df_statistics
-            df_statistics = df_statistics.groupby(['uuid']).sum().reset_index()
-            df_statistics['web_id'] = [web_id] * df_statistics.shape[0]
-            df_statistics['hour'] = [hour] * df_statistics.shape[0]
-            df_statistics['date'] = [date] * df_statistics.shape[0]
-
-            t_end = time.time()
-            spent_time = t_end - t_start_inloop
-            print(f'build df loop spent time: {spent_time}s')
-
-            ## save to db
-            # df_usertag_save = df_usertag.drop(columns=['news', 'keywords']).drop_duplicates()
-            df_usertag_save = df_usertag.drop_duplicates()
-            query = MySqlHelper.generate_update_SQLquery(df_usertag_save, 'usertag_uuid')
-            MySqlHelper('missioner', is_ssh=jump2gcp).ExecuteUpdate(query, df_usertag_save.to_dict('records'))
-
-            df_statistics_save = df_statistics.query(f"num_usertag<32767") ## smallint in SQL
-            query_stat = MySqlHelper.generate_update_SQLquery(df_statistics, 'usertag_uuid_stat')
-            MySqlHelper('missioner', is_ssh=jump2gcp).ExecuteUpdate(query_stat, df_statistics.to_dict('records'))
+        df_usertag_save, df_statistics = main_keyword_uuid(web_id, date, jieba_base)
         ## delete uuid_tag exceed criteria(100)
         missioner = delete_usertag_meet_criteria(web_id)
         ## close sql session
         missioner.close_sql_session()
-
     t_end_program = time.time()
     spent_time_program = t_end_program - t_start_outloop
     print(f'One round(all web_id) spent: {spent_time_program} s')
