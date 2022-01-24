@@ -197,7 +197,7 @@ def main_keyword_uuid(web_id, date, jieba_base):
                 uuidData[uuid] = {'web_id': web_id, 'uuid': uuid, 'keywordList': [], 'viewArticles': 0}
             uuidData[uuid]['keywordList'] += keyword_list
             uuidData[uuid]['viewArticles'] += 1
-            if i % 1000 == 0:
+            if i % 10000 == 0:
                 print(f'finish built {i}')
         ## merge user's keywords
         uuidData = keyword_usertag_sorting(web_id, uuidData).fetch_uuidData()
