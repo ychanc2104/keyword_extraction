@@ -5,35 +5,33 @@ from basic.decorator import timing
 import pandas as pd
 from definitions import ROOT_DIR
 
-## generate keyword metrics and save to normal and historical table
-def save_keyword_metrics(keyword_list):
-    is_UTC0 = check_is_UTC0()
-    today = get_today(is_UTC0=is_UTC0)
-    year, month = today.year, today.month
-
-    # df_keyword_metrics = GoogleSearchConsole()._generate_keyword_metrics(keyword_list, path_ads_config='./gAPI/google-ads.yaml')
-    df_monthly_keyword_metrics = GoogleSearchConsole()._generate_12month_keyword_metrics(keyword_list)
-    df_monthly_keyword_metrics = df_monthly_keyword_metrics.query(f"year=='{year}' and month=='{month-1}'")
-    df_keyword_metrics = df_monthly_keyword_metrics.query(f"year=='{year}' and month=='{month}'").drop(columns=['monthly_traffic', 'year', 'month'])
-    df_keyword_metrics['date'] = [datetime_to_str(today)] * df_keyword_metrics.shape[0]
-    keyword_metrics_list_dict = df_keyword_metrics.to_dict('records')
-    monthly_keyword_metrics_list_dict = df_monthly_keyword_metrics.to_dict('records')
-
-    ## generate sql script by DataFrame
-    # query = MySqlHelper.generate_update_SQLquery(df_keyword_metrics, 'google_ads_metrics')
-    query_history = MySqlHelper.generate_update_SQLquery(df_monthly_keyword_metrics, 'google_ads_metrics_history')
-    ## save to metrics tables
-    # MySqlHelper('roas_report').ExecuteUpdate(query, keyword_metrics_list_dict)
-    MySqlHelper('roas_report').ExecuteUpdate(query_history, monthly_keyword_metrics_list_dict)
-    return df_keyword_metrics, df_monthly_keyword_metrics
+# ## generate keyword metrics and save to normal and historical table
+# def save_keyword_metrics(keyword_list):
+#     is_UTC0 = check_is_UTC0()
+#     today = get_today(is_UTC0=is_UTC0)
+#     year, month = today.year, today.month
+#
+#     # df_keyword_metrics = GoogleSearchConsole()._generate_keyword_metrics(keyword_list, path_ads_config='./gAPI/google-ads.yaml')
+#     df_monthly_keyword_metrics = GoogleSearchConsole()._generate_12month_keyword_metrics(keyword_list)
+#     df_monthly_keyword_metrics = df_monthly_keyword_metrics.query(f"year=='{year}' and month=='{month-1}'")
+#     df_keyword_metrics = df_monthly_keyword_metrics.query(f"year=='{year}' and month=='{month}'").drop(columns=['monthly_traffic', 'year', 'month'])
+#     df_keyword_metrics['date'] = [datetime_to_str(today)] * df_keyword_metrics.shape[0]
+#     keyword_metrics_list_dict = df_keyword_metrics.to_dict('records')
+#     monthly_keyword_metrics_list_dict = df_monthly_keyword_metrics.to_dict('records')
+#
+#     ## generate sql script by DataFrame
+#     # query = MySqlHelper.generate_update_SQLquery(df_keyword_metrics, 'google_ads_metrics')
+#     query_history = MySqlHelper.generate_update_SQLquery(df_monthly_keyword_metrics, 'google_ads_metrics_history')
+#     ## save to metrics tables
+#     # MySqlHelper('roas_report').ExecuteUpdate(query, keyword_metrics_list_dict)
+#     MySqlHelper('roas_report').ExecuteUpdate(query_history, monthly_keyword_metrics_list_dict)
+#     return df_keyword_metrics, df_monthly_keyword_metrics
 
 
 ## fetch keywords yesterday + today
 @timing
 def fetch_new_gtrend_keywords():
-    # if date_start==None:
-    #     date_start = get_date_shift(get_today(is_UTC0=is_UTC0), days=1)
-    # query = f"SELECT keyword FROM google_trend_keyword where add_time>'{date_start}'"
+
     query = f"""
             SELECT DISTINCT
                 keyword AS keyword
@@ -55,9 +53,7 @@ def fetch_new_gtrend_keywords():
 ## fetch keywords yesterday + today
 @timing
 def fetch_new_gconsole_keywords():
-    # if date_start==None:
-    #     date_start = get_date_shift(get_today(is_UTC0=is_UTC0), days=1)
-    # query = f"SELECT query FROM google_search_console_query where add_time>'{date_start}'"
+
     query = f"""
             SELECT DISTINCT
                 query AS query
@@ -85,15 +81,14 @@ def save_init_monthly_keyword_metrics(n=300):
 
     df_monthly_keyword_metrics = GoogleSearchConsole()._generate_12month_keyword_metrics(keyword_list)
     df_monthly_keyword_metrics = add_unavailable(keyword_list, df_monthly_keyword_metrics)
-    monthly_keyword_metrics_list_dict = df_monthly_keyword_metrics.to_dict('records')
-    # df_keyword_metrics = df_monthly_keyword_metrics.drop(columns=['monthly_traffic', 'year', 'month'])
-    # keyword_metrics_list_dict = df_keyword_metrics.to_dict('records')
+
     ## generate sql script by DataFrame
-    # query = MySqlHelper.generate_update_SQLquery(df_keyword_metrics, 'google_ads_metrics')
-    query_history = MySqlHelper.generate_update_SQLquery(df_monthly_keyword_metrics, 'google_ads_metrics_history')
+    # query_history = MySqlHelper.generate_update_SQLquery(df_monthly_keyword_metrics, 'google_ads_metrics_history')
+
+    query_history = MySqlHelper.generate_insertDup_SQLquery(df_monthly_keyword_metrics, 'google_ads_metrics_history',
+                                                    list(df_monthly_keyword_metrics.columns))
     ## save to metrics tables
-    # MySqlHelper('roas_report').ExecuteUpdate(query, keyword_metrics_list_dict)
-    MySqlHelper('roas_report').ExecuteUpdate(query_history, monthly_keyword_metrics_list_dict)
+    MySqlHelper('roas_report').ExecuteUpdate(query_history, df_monthly_keyword_metrics.to_dict('records'))
     return keyword_list, df_monthly_keyword_metrics
 
 ## add unavailable data
@@ -114,18 +109,22 @@ def add_unavailable(keyword_list, df_monthly_keyword_metrics):
 
 
 def save_latest_month_keyword_metrics(n=50):
-    month = get_today(check_is_UTC0()).month
+    # month = get_today(check_is_UTC0()).month
     keyword_list = fetch_update_keywords(n=n)
     df_monthly_keyword_metrics = GoogleSearchConsole()._generate_12month_keyword_metrics(keyword_list)
     if df_monthly_keyword_metrics.shape[0] == 0:
         print("Today's budget is ran out")
         return keyword_list, []
     else:
-        df_month_keyword_metrics = df_monthly_keyword_metrics.query(f"month=={month-1}")
-        query = MySqlHelper.generate_update_SQLquery(df_monthly_keyword_metrics, 'google_ads_metrics_history')
+        # df_month_keyword_metrics = df_monthly_keyword_metrics.query(f"month=={month-1}")
+        # query = MySqlHelper.generate_update_SQLquery(df_monthly_keyword_metrics, 'google_ads_metrics_history')
+
+        ## use update on duplicate
+        query = MySqlHelper.generate_insertDup_SQLquery(df_monthly_keyword_metrics, 'google_ads_metrics_history', list(df_monthly_keyword_metrics.columns))
+
         ## save to metrics tables
-        MySqlHelper('roas_report').ExecuteUpdate(query, df_month_keyword_metrics.to_dict('records'))
-        return keyword_list, df_month_keyword_metrics
+        MySqlHelper('roas_report').ExecuteUpdate(query, df_monthly_keyword_metrics.to_dict('records'))
+        return keyword_list, df_monthly_keyword_metrics
 
 
 def fetch_update_keywords(n=50):
