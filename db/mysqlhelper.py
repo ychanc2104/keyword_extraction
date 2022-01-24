@@ -1,3 +1,5 @@
+import pandas as pd
+
 from db.mysqlconnector import MysqlConnector
 from db.logger import Logger
 from sqlalchemy import create_engine, Table, MetaData, insert
@@ -108,3 +110,55 @@ class MySqlHelper:
         query = f"{query} {params} VALUES {bind_params}"
         print(f"auto-generating SQL script, \n{query}")
         return query
+
+    ## support INSERT and REPLACE INTO
+    # """
+    # query = ''' INSERT INTO web_push.usertag_uuid_sorted (web_id, uuid, keywordList, keywordFreq, viewArticles) VALUES (:web_id, :uuid, :keywordList, :keywordFreq, :viewArticles)
+    #         ON DUPLICATE KEY UPDATE keywordList = VALUES(keywordList),
+    #                                 keywordFreq = VALUES(keywordFreq),
+    #                                 viewArticles = VALUES(viewArticles)
+    #     '''
+    # """
+    @staticmethod
+    def generate_insertDup_SQLquery(df, table_name, update_col_list):
+        columns = df.columns.values
+        n_col = len(columns)
+        query = f"INSERT INTO {table_name}"
+        # query = "REPLACE INTO google_search_console_device (web_id, clicks, impressions, position, device, date) VALUES (:web_id, :clicks, :impressions, :position, :device, :date)"
+        params, bind_params = "(", "("
+        for i, col in enumerate(columns):
+            if i == (n_col - 1):  ## reach end
+                params += f"{col})"
+                bind_params += f":{col})"
+            else:
+                params += f"{col},"
+                bind_params += f":{col},"
+
+        query = f"{query} {params} VALUES {bind_params} ON DUPLICATE KEY UPDATE "
+        for i, col in enumerate(update_col_list):
+            if i==len(update_col_list)-1:
+                query += f"{col} = VALUES({col})"
+            else:
+                query += f"{col} = VALUES({col}),"
+
+        print(f"auto-generating SQL script, \n{query}")
+        return query
+
+## unit test
+if __name__ == '__main__':
+
+    query = f"""
+            SELECT web_id,keyword_gtrend,keyword_ecom,product_id,title,score,score_damerau,weight_cosine FROM roas_report.seo_sim_products where web_id='i3fresh' and keyword_gtrend='龍涎香'
+            """
+    print(query)
+    data = MySqlHelper("roas_report").ExecuteSelect(query)
+
+    df = pd.DataFrame(data, columns=['web_id','keyword_gtrend','keyword_ecom','product_id','title','score','score_damerau','weight_cosine'])
+    query = MySqlHelper.generate_insertDup_SQLquery(df, 'seo_sim_products', update_col_list=['score_damerau', 'weight_cosine'])
+    df['score_damerau'] = 1 #1
+    df['weight_cosine'] = 1 #1
+
+    MySqlHelper("roas_report").ExecuteUpdate(query, df.to_dict('records'))
+
+
+
