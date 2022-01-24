@@ -55,10 +55,9 @@ class GoogleTrend:
         date_end = datetime_to_str(get_today())
         date_start = datetime_to_str(to_datetime(date_end) - datetime.timedelta(days=1))
         df_2day = self.fetch_keyword(date_start, date_end, filter_repeat=True)
-        df_2day_list_of_dict = df_2day.to_dict('records')
-        query = text("REPLACE INTO google_trend_keyword (keyword, relatedQueries, traffic, date) VALUES (:keyword, :relatedQueries, :traffic, :date)")
-        # query = "INSERT IGNORE INTO google_trend_keyword (keyword, relatedQueries, traffic, date) VALUES (:keyword, :relatedQueries, :traffic, :date)"
-        MySqlHelper('dione', is_ssh=is_ssh).ExecuteUpdate(query, df_2day_list_of_dict)
+        # query = text("REPLACE INTO google_trend_keyword (keyword, relatedQueries, traffic, date) VALUES (:keyword, :relatedQueries, :traffic, :date)")
+        query = MySqlHelper.generate_insertDup_SQLquery(df_2day, 'google_trend_keyword', ['relatedQueries', 'traffic'])
+        MySqlHelper('dione', is_ssh=is_ssh).ExecuteUpdate(query, df_2day.to_dict('records'))
         return df_2day
 
     # get only latest one month
@@ -186,6 +185,7 @@ class GoogleTrend:
             params=self.token_payload,
             trim_chars=4,
         )['widgets'] ## get four objects, 1.multiline, 2.comparedgeo, 3.related topics, 4.related queries
+        self.response_list = []
         response_all = {}
         dict_name = ['MultiLine', 'ComparedGEO', 'SearchTopic', 'SearchQuery']
         for i, widget_dicts in enumerate(widget_dicts_list):
@@ -193,6 +193,7 @@ class GoogleTrend:
             url = self.build_request_url(self.url_list[i], ['hl', 'tz', 'req', 'token'],
                                          [self.language, self.tz, widget_dicts['request'], widget_dicts['token']])
             response = requests.get(url)
+            self.response_list += [response]
             if dict_name[i] == 'MultiLine':
                 df_multiline = pd.DataFrame(json.loads(re.sub(r'\)\]\}\',\n', '', response.text))['default']['timelineData'])
                 # response_all[dict_name[i]] = self._reformat_value(df_multiline)
@@ -206,8 +207,16 @@ class GoogleTrend:
                 df_hot = pd.DataFrame(json.loads(re.sub(r'\)\]\}\',\n', '', response.text))['default']['rankedList'][0]['rankedKeyword']) #popular topics or queries
                 df_up  = pd.DataFrame(json.loads(re.sub(r'\)\]\}\',\n', '', response.text))['default']['rankedList'][1]['rankedKeyword']) #increasing topics or queries
                 if dict_name[i] == 'SearchTopic':
-                    response_all[dict_name[i]] = {'hot': self._reshape_topic(df_hot), 'up': self._reshape_topic(df_up)}
+                    if df_hot.shape[0]==0 or df_up.shape[0]==0:
+                        response_all[dict_name[i]] = {'hot': df_hot, 'up': df_up}
+                    else:
+                        response_all[dict_name[i]] = {'hot': self._reshape_topic(df_hot), 'up': self._reshape_topic(df_up)}
                 else:
+                    # if df_hot.shape[0]==0 or df_up.shape[0]==0:
+                    #     continue
+                    # else:
+                    print(df_hot)
+                    print(df_up)
                     response_all[dict_name[i]] = {'hot': df_hot, 'up': df_up}
         return response_all
 
@@ -321,14 +330,17 @@ if __name__ == '__main__':
     gtrend = GoogleTrend()
 
     #
-    # response_all = gtrend.fetch_keyword_explore(keyword='公投', gprop='',timeframe='2021-10-01 2021-12-10')
-    # df_multiline = response_all['MultiLine']
-    # df_geo = response_all['ComparedGEO']
-    # df_topic_hot, df_topic_up = response_all['SearchTopic']['hot'], response_all['SearchTopic']['up']
-    # df_query_hot, df_query_up = response_all['SearchQuery']['hot'], response_all['SearchQuery']['up']
-
+    response_all = gtrend.fetch_keyword_explore(keyword='NFT', gprop='',timeframe='2021-10-01 2022-01-05')
+    df_multiline = response_all['MultiLine']
+    df_geo = response_all['ComparedGEO']
+    df_topic_hot, df_topic_up = response_all['SearchTopic']['hot'], response_all['SearchTopic']['up']
+    df_query_hot, df_query_up = response_all['SearchQuery']['hot'], response_all['SearchQuery']['up']
+    GoogleTrend.save_multi_df(['multiline' ,'geo', 'topic_hot', 'topic_up', 'query_hot', 'query_up'], [df_multiline, df_geo, df_topic_hot, df_topic_up, df_query_hot, df_query_up])
     # a= GoogleTrend._reformat_cols(df_multiline, cols=['value', 'hasData', 'formattedValue'])
-    response_list = gtrend.fetch_keyword_list_explore(keyword_list=['藻 礁','公投 綁 大選','萊 豬','核 四'], gprop='',timeframe='2021-10-01 2021-12-10')
+    # response_list = gtrend.fetch_keyword_list_explore(keyword_list=['藻 礁','公投 綁 大選','萊 豬','核 四'], gprop='',timeframe='2021-10-01 2021-12-10')
+    #
+    # response_list = gtrend.fetch_keyword_list_explore(keyword_list=['疫情', '元 宇宙'], gprop='',timeframe='2021-11-01 2022-01-03')
+
     # gtrend.save_multi_df(name_list=['trend','geo','topic_hot','topic_up','query_hot','query_up'],
     #                      df_list=[df_multiline, df_geo, df_topic_hot, df_topic_up, df_query_hot, df_query_up])
     # keyword_list = ['藻 礁', '公投 綁 大選', '萊 豬', '核 四']
