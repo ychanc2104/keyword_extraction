@@ -194,8 +194,12 @@ if __name__ == '__main__':
     #              path_write='word2vec_zhonly_remove_one_v200m10.model', vector_size=200, min_count=10)
     # composer.fit(path_read='20211101_wiki_text_seg_zhonly_remove_one.txt',
     #              path_write='word2vec_zhonly_remove_one_v300m10w5.model', vector_size=300, min_count=10)
+    # composer.fit(path_read='20211101_wiki_text_seg_zhonly_remove_one.txt',
+    #              path_write='word2vec_zhonly_remove_one_v300m20w10.model', vector_size=300, min_count=20, window_size=10)
+    # composer.fit(path_read='20211101_wiki_text_seg_zhonly_remove_one.txt',
+    #              path_write='word2vec_zhonly_remove_one_v150m5w10.model', vector_size=150, min_count=5, window_size=10)
     composer.fit(path_read='20211101_wiki_text_seg_zhonly_remove_one.txt',
-                 path_write='word2vec_zhonly_remove_one_v300m20w10.model', vector_size=300, min_count=20, window_size=10)
+                 path_write='word2vec_zhonly_remove_one_v300m100w5.model', vector_size=300, min_count=100, window_size=5)
     ############## train word embedding ###############
 
     ############## load word embedding model ###############

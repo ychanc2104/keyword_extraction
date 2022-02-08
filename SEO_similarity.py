@@ -65,8 +65,8 @@ def Extract_ecom_df_keyword(df_ecom_content, composer, stopwords, stopwords_SEO,
     data_dict, i = {}, 0
     for index, row in df_ecom_content.iterrows():
         product_id, title, description, url = row['product_id'], row['title'], row['description'], row['url']
-        content = title + ' ' + description
-        # content = title
+        # content = title + ' ' + description
+        content = title
         content_clean = composer.filter_symbol(content)
         content_clean = composer.filter_str(content_clean, pattern=product_id) ## remove its own product_id in content
         if use_cut:
@@ -110,6 +110,29 @@ def fetch_gtrend_keyword_list(date, n_limit=200):
     date_end = to_datetime(date)
     # date_end = get_today(is_UTC0=is_UTC0)
     date_start = get_date_shift(date_ref=date_end, days=1)
+    query = f"""
+            SELECT 
+                keyword, SUM(traffic) AS traffic_total
+            FROM
+                google_trend_keyword
+            WHERE
+                date between '{date_start}' and '{date_end}'
+            GROUP BY keyword
+            ORDER BY traffic_total DESC
+            LIMIT {n_limit}   
+            """
+    print(query)
+    data = MySqlHelper('dione').ExecuteSelect(query)
+    keyword_list = list(set([d[0] for d in data]))
+    return keyword_list
+
+
+@timing
+def fetch_gtrend_keyword_list_debug(date_start, date_end, n_limit=200):
+    # is_UTC0 = check_is_UTC0()
+    # date_end = to_datetime(date)
+    # date_end = get_today(is_UTC0=is_UTC0)
+    # date_start = get_date_shift(date_ref=date_end, days=1)
     query = f"""
             SELECT 
                 keyword, SUM(traffic) AS traffic_total
@@ -175,18 +198,20 @@ def fetch_web_id_list():
 if __name__ == '__main__':
     use_cut = False ## False: TF-IDT extraction, True: cut
     web_id_list = fetch_web_id_list()
-    # web_id_list = ['i3fresh'] #'nanooneshop'
+    # web_id_list = ['draimior'] #'nanooneshop', 'i3fresh', 'draimior'
     composer = Composer()
     composer.set_config()  ## add all user dictionary (add_words, google_trend, all_hashtag)
     stopwords = composer.get_stopword_list()
     stopwords_SEO = composer.read_file('./jieba_based/stop_words_SEO.txt')
     ## pre-load model
-    path_model = './gensim_compose/word2vec_zhonly_remove_one_v150m3w5.model'  ##'./gensim_compose/word2vec_zhonly_remove_one_v300m10w5.model'
+    # path_model = './gensim_compose/word2vec_zhonly_remove_one_v150m3w5.model'  ##'./gensim_compose/word2vec_zhonly_remove_one_v300m10w5.model'
+    path_model = './gensim_compose/word2vec_zhonly_remove_one_v300m100w5.model'  ##'./gensim_compose/word2vec_zhonly_remove_one_v300m10w5.model'
+
     composer.load_model(path=path_model)
 
     yesterday = get_yesterday(check_is_UTC0())
     date_list = [yesterday]
-    # n_days = 1
+    # n_days = 60
     # date_list = date_range(get_date_shift(yesterday, n_days), n_days)
     for web_id in web_id_list:
         for date in date_list:
@@ -194,6 +219,8 @@ if __name__ == '__main__':
             df_ecom_content = fetch_ecom_content(web_id)
             # keyword_list_gtrend = fetch_gtrend_init_keyword_list(date, n_limit=100)  ## use for init table
             keyword_list_gtrend = fetch_gtrend_keyword_list(date, n_limit=200)  ## get latest two day keywords
+            # keyword_list_gtrend = fetch_gtrend_keyword_list_debug('2021-12-01','2022-02-07', n_limit=2000)  ## get latest two day keywords
+
             df_ecom_keyword, composer = Extract_ecom_df_keyword(df_ecom_content, composer, stopwords, stopwords_SEO, use_cut)
             ## get keyword list of Ecom
             keyword_list_ecom = list(set(df_ecom_keyword.keyword))
