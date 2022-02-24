@@ -51,7 +51,8 @@ def keyword_usertag_report(web_id, expired_date=None, usertag_table='usertag', r
             token_dict[usertag] += [token]
             uuid_dict[usertag] += [uuid]
         i += 1
-        print(f"finish add counting to {usertag}, {i}/{L}")
+        if i%1000:
+            print(f"finish add counting, {i}/{L}")
     token_dict = count_unique(token_dict)
     uuid_dict = count_unique(uuid_dict)
     ## build a dict to save to Dataframe (faster version for adding components)

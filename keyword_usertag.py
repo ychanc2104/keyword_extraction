@@ -1,10 +1,8 @@
 import pandas as pd
 import datetime
-from db.mysqlhelper import MySqlHelper
-from media.Media import Media
-from basic.date import get_date_shift, datetime_to_str, get_yesterday, to_datetime, get_today, check_is_UTC0
-from basic.decorator import timing
-from jieba_based.jieba_utils import Composer_jieba
+from db import MySqlHelper
+from basic import get_date_shift, get_yesterday, to_datetime, get_today, check_is_UTC0, timing, logging_channels
+from jieba_based import Composer_jieba
 from keyword_usertag_report import keyword_usertag_report, delete_expired_rows
 import jieba.analyse
 import numpy as np
@@ -100,80 +98,78 @@ def fetch_browse_record_join(web_id, date, is_df=False):
     else:
         return data
 
+@logging_channels(['clare_test'])
+@timing
+def main_update_subscriber_usertag(web_id, date, is_UTC0, jump2gcp, expired_day, jieba_base, stopwords, stopwords_usertag):
+    ## fetch subscribed browse record
+    # data = fetch_browse_record_yesterday_join(web_id, is_df=False, is_UTC0=is_UTC0)
+    expired_date = get_date_shift(date_ref=date, days=-expired_day, to_str=True,
+                                  is_UTC0=is_UTC0)  ## set to today + 3 (yesterday+4), preserve 4 days
+    data = fetch_browse_record_join(web_id, date=date, is_df=False)
+    n_data = len(data)
+    if n_data == 0:
+        print('no valid data in dione.subscriber_browse_record')
+        return pd.DataFrame()
+    ## build usertag DataFrame
+    data_save = {}
+    j = 0
+    for i, d in enumerate(data):
+        uuid, code, token, cert_web_id, article_id, title, content, keywords = d
+        news = title + ' ' + content
+        ## pattern for removing https
+        news_clean = jieba_base.filter_str(news, pattern="https:\/\/([0-9a-zA-Z.\/]*)")
+        ## pattern for removing symbol, -,+~.
+        news_clean = jieba_base.filter_symbol(news_clean)
+        if (keywords == '') | (keywords == '_'):
+            keyword_list = jieba.analyse.extract_tags(news_clean, topK=8)
+            keyword_list = clean_keyword_list(keyword_list, stopwords, stopwords_usertag)
+            keywords = ','.join(keyword_list)  ## add keywords
+            is_cut = 1
+        else:
+            keyword_list = [k.strip() for k in keywords.split(',')]
+            keyword_list = clean_keyword_list(keyword_list, stopwords, stopwords_usertag)
+            is_cut = 0
+        for keyword in keyword_list:
+            data_save[j] = {'web_id': web_id, 'uuid': uuid, 'code': code, 'token': token, 'cert_web_id': cert_web_id,
+                            'news': news_clean, 'keywords': keywords, 'usertag': keyword, 'article_id': article_id,
+                            'expired_date': expired_date, 'is_cut': is_cut}
+            j += 1
+        if i % 1000 == 0:
+            print(f'finish built {i}/{n_data}')
+    ## build DataFrame
+    df_map = pd.DataFrame.from_dict(data_save, "index")
+    ## filter nonsense data
+    df_map = df_map[df_map.usertag != '']
+
+    # ## drop unuse columns and drop duplicates, and save to db
+    df_map_save = df_map.drop(columns=['news', 'keywords']).drop_duplicates(subset=['web_id','usertag','uuid','article_id'])
+    MySqlHelper.ExecuteUpdatebyChunk(df_map_save, db='missioner', table='usertag', chunk_size=100000, is_ssh=jump2gcp)
+    ## delete expired data
+    # delete_expired_rows(web_id, table='usertag', is_UTC0=is_UTC0, jump2gcp=jump2gcp)
+    ### prepare keyword_usertag_report
+    df_freq_token = keyword_usertag_report(web_id, expired_date, usertag_table='usertag', report_table='usertag_report',
+                                           is_UTC0=is_UTC0, jump2gcp=jump2gcp)
+
+
 
 if __name__ == '__main__':
     ## set is in UTC+0 or UTC+8
     is_UTC0 = check_is_UTC0()
     jump2gcp = True
     date = get_yesterday(is_UTC0=is_UTC0) ## compute all browsing record yesterday ad 3:10 o'clock
-    # date = '2021-12-29'
-    # set up config (add word, user_dict.txt ...)
+    # date = '2022-02-22'
+    ## set up config (add word, user_dict.txt ...)
     jieba_base = Composer_jieba()
     all_hashtag = jieba_base.set_config()
     stopwords = jieba_base.get_stopword_list()
     stopwords_usertag = jieba_base.read_file('./jieba_based/stop_words_usertag.txt')
 
     web_id_all, expired_day_all = fetch_usertag_web_id_ex_day()
-    # web_id_all = ['mirrormedia']
+    # web_id_all = ['bnext']
     # expired_day_all = [21]
     ## get expired_date
-    # expired_date = get_date_shift(date_ref=date, days=-4, to_str=True, is_UTC0=is_UTC0) ## set to today + 3 (yesterday+4), preserve 4 days
-    t_start_outloop = time.time()
     for web_id, expired_day in zip(web_id_all, expired_day_all):
-        ## fetch subscribed browse record
-        # data = fetch_browse_record_yesterday_join(web_id, is_df=False, is_UTC0=is_UTC0)
-        expired_date = get_date_shift(date_ref=date, days=-expired_day, to_str=True,
-                                      is_UTC0=is_UTC0)  ## set to today + 3 (yesterday+4), preserve 4 days
-        data = fetch_browse_record_join(web_id, date=date, is_df=False)
-        if len(data) == 0:
-            print('no valid data in dione.subscriber_browse_record')
-            continue
-        ## build usertag DataFrame
-        t_start_inloop = time.time()
-        data_save = {}
-        j=0
-        for i, d in enumerate(data):
-            uuid, code, token, cert_web_id, article_id, title, content, keywords = d
-            news = title + ' ' + content
-            ## pattern for removing https
-            news_clean = jieba_base.filter_str(news, pattern="https:\/\/([0-9a-zA-Z.\/]*)")
-            ## pattern for removing symbol, -,+~.
-            news_clean = jieba_base.filter_symbol(news_clean)
-            if (keywords == '') | (keywords == '_'):
-                keyword_list = jieba.analyse.extract_tags(news_clean, topK=8)
-                keyword_list = clean_keyword_list(keyword_list, stopwords, stopwords_usertag)
-                keywords = ','.join(keyword_list)  ## add keywords
-                is_cut = 1
-            else:
-                keyword_list = [k.strip() for k in keywords.split(',')]
-                keyword_list = clean_keyword_list(keyword_list, stopwords, stopwords_usertag)
-                is_cut = 0
-            for keyword in keyword_list:
-                data_save[j] = {'web_id':web_id, 'uuid':uuid, 'code':code, 'token':token, 'cert_web_id':cert_web_id,
-                                'news':news_clean, 'keywords':keywords, 'usertag':keyword, 'article_id': article_id,
-                                'expired_date':expired_date, 'is_cut': is_cut}
-                j += 1
-            print(f'finish built {i}, article_id: {article_id}')
-        ## build DataFrame
-        df_map = pd.DataFrame.from_dict(data_save, "index")
-        t_end = time.time()
-        spent_time = t_end - t_start_inloop
-        print(f'build df loop spent time: {spent_time}s')
-        ## filter nonsense data
-        df_map = df_map[df_map.usertag != '']
-        # ## save to db
-        df_map_save = df_map.drop(columns=['news', 'keywords']).drop_duplicates()
-        usertag_list_dict = df_map_save.to_dict('records')
-        query = MySqlHelper.generate_update_SQLquery(df_map_save, 'usertag')
-        MySqlHelper('missioner', is_ssh=jump2gcp).ExecuteUpdate(query, usertag_list_dict)
-        ## delete expired data
-        # delete_expired_rows(web_id, table='usertag', is_UTC0=is_UTC0, jump2gcp=jump2gcp)
-
-        ### prepare keyword_usertag_report
-        df_freq_token = keyword_usertag_report(web_id, expired_date, usertag_table='usertag', report_table='usertag_report', is_UTC0=is_UTC0, jump2gcp=jump2gcp)
-    t_end_program = time.time()
-    spent_time_program = t_end_program - t_start_outloop
-    print(f'One round spent: {spent_time_program} s')
+        main_update_subscriber_usertag(web_id, date, is_UTC0, jump2gcp, expired_day, jieba_base, stopwords, stopwords_usertag)
 
 
 
