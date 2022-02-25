@@ -51,7 +51,7 @@ def keyword_usertag_report(web_id, expired_date=None, usertag_table='usertag', r
             token_dict[usertag] += [token]
             uuid_dict[usertag] += [uuid]
         i += 1
-        if i%1000:
+        if i%10000==0:
             print(f"finish add counting, {i}/{L}")
     token_dict = count_unique(token_dict)
     uuid_dict = count_unique(uuid_dict)
@@ -82,9 +82,8 @@ def keyword_usertag_report(web_id, expired_date=None, usertag_table='usertag', r
     df_freq_token[['term_freq', 'token_count', 'uuid_count']] = df_freq_token[
         ['term_freq', 'token_count', 'uuid_count']].astype('int')
     ## save to db, clean_df(*args, df_search, columns, columns_drop, columns_rearrange)
-    usertag_report_list_dict = df_freq_token.to_dict('records')
     query = f"REPLACE INTO {report_table} (web_id, usertag, term_freq, token_count, uuid_count, expired_date) VALUES (:web_id, :usertag, :term_freq, :token_count, :uuid_count, :expired_date)"
-    MySqlHelper('missioner', is_ssh=jump2gcp).ExecuteUpdate(query, usertag_report_list_dict)
+    MySqlHelper('missioner', is_ssh=jump2gcp).ExecuteUpdate(query, df_freq_token.to_dict('records'))
     ## delete expired data
     delete_expired_rows(web_id, table='usertag_report', jump2gcp=jump2gcp)
     return df_freq_token

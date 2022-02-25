@@ -27,3 +27,6 @@ ml
 個
 招
 kg
+jpg
+JPG
+折

@@ -1,7 +1,7 @@
 import pandas as pd
 import datetime
 from db import MySqlHelper
-from basic import get_date_shift, get_yesterday, to_datetime, get_today, check_is_UTC0, timing, logging_channels
+from basic import get_date_shift, get_yesterday, to_datetime, get_today, check_is_UTC0, timing, logging_channels, date_range, datetime_to_str
 from jieba_based import Composer_jieba
 from keyword_usertag_report import keyword_usertag_report, delete_expired_rows
 import jieba.analyse
@@ -111,8 +111,7 @@ def main_update_subscriber_usertag(web_id, date, is_UTC0, jump2gcp, expired_day,
         print('no valid data in dione.subscriber_browse_record')
         return pd.DataFrame()
     ## build usertag DataFrame
-    data_save = {}
-    j = 0
+    j, data_save = 0, {}
     for i, d in enumerate(data):
         uuid, code, token, cert_web_id, article_id, title, content, keywords = d
         news = title + ' ' + content
@@ -121,8 +120,8 @@ def main_update_subscriber_usertag(web_id, date, is_UTC0, jump2gcp, expired_day,
         ## pattern for removing symbol, -,+~.
         news_clean = jieba_base.filter_symbol(news_clean)
         if (keywords == '') | (keywords == '_'):
-            keyword_list = jieba.analyse.extract_tags(news_clean, topK=8)
-            keyword_list = clean_keyword_list(keyword_list, stopwords, stopwords_usertag)
+            keyword_list = jieba.analyse.extract_tags(news_clean, topK=80)[::-1]
+            keyword_list = clean_keyword_list(keyword_list, stopwords, stopwords_usertag)[:8]
             keywords = ','.join(keyword_list)  ## add keywords
             is_cut = 1
         else:
@@ -150,6 +149,8 @@ def main_update_subscriber_usertag(web_id, date, is_UTC0, jump2gcp, expired_day,
     df_freq_token = keyword_usertag_report(web_id, expired_date, usertag_table='usertag', report_table='usertag_report',
                                            is_UTC0=is_UTC0, jump2gcp=jump2gcp)
 
+    return df_map_save, df_freq_token
+
 
 
 if __name__ == '__main__':
@@ -157,7 +158,9 @@ if __name__ == '__main__':
     is_UTC0 = check_is_UTC0()
     jump2gcp = True
     date = get_yesterday(is_UTC0=is_UTC0) ## compute all browsing record yesterday ad 3:10 o'clock
-    # date = '2022-02-22'
+    date_list = [date]
+    # date_list = [datetime_to_str(date) for date in date_range('2022-02-18', 6)]
+    # date_list = ['2022-02-21', '2022-02-22', '2022-02-23', '2022-02-24']
     ## set up config (add word, user_dict.txt ...)
     jieba_base = Composer_jieba()
     all_hashtag = jieba_base.set_config()
@@ -165,11 +168,12 @@ if __name__ == '__main__':
     stopwords_usertag = jieba_base.read_file('./jieba_based/stop_words_usertag.txt')
 
     web_id_all, expired_day_all = fetch_usertag_web_id_ex_day()
-    # web_id_all = ['bnext']
-    # expired_day_all = [21]
+    # web_id_all = ['xuite']
+    # expired_day_all = [14]
     ## get expired_date
-    for web_id, expired_day in zip(web_id_all, expired_day_all):
-        main_update_subscriber_usertag(web_id, date, is_UTC0, jump2gcp, expired_day, jieba_base, stopwords, stopwords_usertag)
+    for date in date_list:
+        for web_id, expired_day in zip(web_id_all, expired_day_all):
+            df_map_save, df_freq_token = main_update_subscriber_usertag(web_id, date, is_UTC0, jump2gcp, expired_day, jieba_base, stopwords, stopwords_usertag)
 
 
 
