@@ -159,7 +159,7 @@ if __name__ == '__main__':
     jump2gcp = True
     date = get_yesterday(is_UTC0=is_UTC0) ## compute all browsing record yesterday ad 3:10 o'clock
     date_list = [date]
-    # date_list = [datetime_to_str(date) for date in date_range('2022-02-18', 6)]
+    # date_list = [datetime_to_str(date) for date in date_range('2022-03-03', 4)]
     # date_list = ['2022-02-21', '2022-02-22', '2022-02-23', '2022-02-24']
     ## set up config (add word, user_dict.txt ...)
     jieba_base = Composer_jieba()
@@ -168,12 +168,12 @@ if __name__ == '__main__':
     stopwords_usertag = jieba_base.read_file('./jieba_based/stop_words_usertag.txt')
 
     web_id_all, expired_day_all = fetch_usertag_web_id_ex_day()
-    # web_id_all = ['xuite']
-    # expired_day_all = [14]
+    # web_id_all = ['btnet']
+    # expired_day_all = [4]
     ## get expired_date
     for date in date_list:
         for web_id, expired_day in zip(web_id_all, expired_day_all):
-            df_map_save, df_freq_token = main_update_subscriber_usertag(web_id, date, is_UTC0, jump2gcp, expired_day, jieba_base, stopwords, stopwords_usertag)
+            main_update_subscriber_usertag(web_id, date, is_UTC0, jump2gcp, expired_day, jieba_base, stopwords, stopwords_usertag)
 
 
 
