@@ -19,6 +19,6 @@
 /gAPI/client_secrets.json
 /gAPI/authorizedcreds.dat
 /gAPI/google-ads.yaml
-/logger/slack_settings.json
-/log/blog_push_local.log.1
+/log_utils/slack_settings.json
 /log/
+*/log/

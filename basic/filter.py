@@ -51,11 +51,36 @@ def filterListofDict(dict_list, key, value=None):
     :param dict_list: data set
     :param key: key of dict which you want to filter
     :param value: if value=None, do not filter value
+    :return: filtered list with key and value pair
+    """
+    if value==None:
+        return list(filter(lambda x: key in x.keys(), dict_list))
+    else:
+        return list(filter(lambda x: value==x[key], filter(lambda x: key in x.keys(), dict_list)))
+
+
+def filterListofDictByDictFuzzy(dict_list, dict_criteria):
+    """
+
+    :param dict_list:
+    :param key_list:
+    :param value_list:
     :return:
+    """
+    for key,value in dict_criteria.items():
+        dict_list = filterListofDictFuzzy(dict_list, key, value)
+    return dict_list
+
+
+def filterListofDictFuzzy(dict_list, key, value=None):
+    """
+
+    :param dict_list: data set
+    :param key: key of dict which you want to filter
+    :param value: if value=None, do not filter value
+    :return: filtered list with key and value pair
     """
     if value==None:
         return list(filter(lambda x: key in x.keys(), dict_list))
     else:
         return list(filter(lambda x: value in x[key], filter(lambda x: key in x.keys(), dict_list)))
-
-

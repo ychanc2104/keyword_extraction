@@ -3,11 +3,19 @@ import socket
 import time
 import numpy as np
 
-def to_datetime(date):
+
+def curdate(utc=0, pattern='%Y-%m-%d'):
+    date = datetime.datetime.utcnow() + datetime.timedelta(hours=utc)
+    return datetime.datetime.strptime(datetime_to_str(date, pattern), pattern)
+
+
+def to_datetime(date, pattern='%Y-%m-%d'):
     if type(date) == str:
-        date = datetime.datetime.strptime(date, '%Y-%m-%d')
+        date = datetime.datetime.strptime(date, pattern)
     elif type(date) == datetime.date:
-        date = datetime.datetime.strptime(datetime_to_str(date), '%Y-%m-%d')
+        date = datetime.datetime.strptime(datetime_to_str(date, pattern), pattern)
+    elif type(date) == datetime.datetime:
+        return date
     return date
 
 def get_yesterday(is_UTC0=False):
@@ -21,7 +29,7 @@ def get_yesterday(is_UTC0=False):
                                                ,microseconds=today.microsecond)
     return yesterday
 
-def get_today(is_UTC0=False): # YYYY-mm-dd-0-0
+def get_today(is_UTC0=False, ): # YYYY-mm-dd-0-0
     today = datetime.datetime.today()
     if is_UTC0:
         today = today + datetime.timedelta(hours=8)
@@ -108,3 +116,7 @@ def date_to_timestamp(date):
 def timestamp_to_date(ts):
     date = datetime.datetime.utcfromtimestamp(ts)
     return date
+
+## unit test
+if __name__ == "__main__":
+    date = timestamp_to_date(1642521611326/1000)
