@@ -31,7 +31,7 @@ class slackBot():
                 requests.post('https://slack.com/api/chat.postMessage', data)
 
     def _LoadConfig(self, settings_filename='slack_settings.json'):
-        self.settings_path = os.path.join(ROOT_DIR, 'logger', settings_filename)
+        self.settings_path = os.path.join(ROOT_DIR, 'log_utils', settings_filename)
         with open(self.settings_path) as settings_file:
             settings = json.load(settings_file)
             return settings

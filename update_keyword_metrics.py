@@ -91,7 +91,10 @@ def save_latest_month_keyword_metrics(n=50):
         return keyword_list, []
     else:
         ## use update on duplicate key (not updating if existing)
-        query = MySqlHelper.generate_insertDup_SQLquery(df_monthly_keyword_metrics, 'google_ads_metrics_history', list(df_monthly_keyword_metrics.columns))
+        # query = MySqlHelper.generate_insertDup_SQLquery(df_monthly_keyword_metrics, 'google_ads_metrics_history',
+        #                                                 list(df_monthly_keyword_metrics.columns))
+        query = MySqlHelper.generate_insertDup_SQLquery(df_monthly_keyword_metrics, 'google_ads_metrics_history',
+                                                        ['monthly_traffic'])
         ## save to metrics tables
         MySqlHelper('roas_report').ExecuteUpdate(query, df_monthly_keyword_metrics.to_dict('records'))
         return keyword_list, df_monthly_keyword_metrics
