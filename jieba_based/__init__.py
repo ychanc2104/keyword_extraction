@@ -1,1 +1,1 @@
-from .jieba_utils import Composer_jieba
+from .jieba_utils import Composer_jieba, foler_path

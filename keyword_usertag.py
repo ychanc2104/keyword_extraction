@@ -120,7 +120,7 @@ def main_update_subscriber_usertag(web_id, date, is_UTC0, jump2gcp, expired_day,
         ## pattern for removing symbol, -,+~.
         news_clean = jieba_base.filter_symbol(news_clean)
         if (keywords == '') | (keywords == '_'):
-            keyword_list = jieba.analyse.extract_tags(news_clean, topK=80)[::-1]
+            keyword_list = jieba.analyse.extract_tags(news_clean, topK=80)
             keyword_list = clean_keyword_list(keyword_list, stopwords, stopwords_usertag)[:8]
             keywords = ','.join(keyword_list)  ## add keywords
             is_cut = 1
