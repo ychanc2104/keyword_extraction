@@ -1,3 +1,4 @@
+import os.path
 import re
 from gensim.models import word2vec
 from gensim.corpora import WikiCorpus
@@ -8,6 +9,12 @@ import numpy as np
 from jieba_based.jieba_utils import Composer_jieba
 from basic.date import get_today, datetime_to_str
 from basic.decorator import timing
+from db import DBhelper
+from definitions import ROOT_DIR
+import pandas as pd
+import math
+from sklearn.feature_extraction.text import CountVectorizer
+
 
 class Composer(Composer_jieba):
     # def __init__(self):
@@ -173,10 +180,228 @@ class Composer(Composer_jieba):
             similarity = sum(vector_1*vector_2)/(norm_1*norm_2)
         return similarity
 
+    @staticmethod
+    def fetch_no_keyword_articles(LIMIT=100, OFFSET=0):
+        # if LIMIT == None:
+        #     query = f"SELECT concat(title, ',', content) as article FROM dione.article_list where keywords='' or  keywords='_'"
+        # else:
+        #     query = f"SELECT concat(title, ',', content) as article FROM dione.article_list where keywords='' or  keywords='_' LIMIT {LIMIT} OFFSET {OFFSET}"
+        web_id_list = ['ctnews', 'upmedia', 'cmoney', 'mirrormedia', 'nownews',
+                        'bnext', 'setn', 'managertoday', 'gvm', 'newtalk', 'btnet',
+                        'moneyweekly', 'pansci', 'edh', 'sportz', 'cnews', 'healthbw',
+                       'edge435', 'babyhome', 'pixnet', 'xuite'] ## 1100 w
+        query = f"""SELECT concat(title, ',', content) as article FROM dione.article_list where web_id in ('{"','".join(web_id_list)}') and keywords='' or  keywords='_' order by id desc LIMIT {LIMIT} OFFSET {OFFSET}"""
+        print(query)
+        data = DBhelper('dione').ExecuteSelect(query)
+        df_articles = pd.DataFrame(data, columns=['article'])
+        return df_articles
+
+    @staticmethod
+    def fetch_keywords(n=None, is_join=False):
+        web_id_list = ['ctnews', 'upmedia', 'cmoney', 'mirrormedia', 'nownews',
+                        'bnext', 'setn', 'managertoday', 'gvm', 'newtalk', 'btnet',
+                        'moneyweekly', 'pansci', 'edh', 'sportz', 'cnews', 'healthbw',
+                       'edge435', 'babyhome', 'pixnet', 'xuite']
+        if n==None:
+            query = f"""SELECT keywords FROM dione.article_list where web_id in ('{"','".join(web_id_list)}') and keywords!='' and  keywords!='_'"""
+        else:
+            query = f"""SELECT keywords FROM dione.article_list where web_id in ('{"','".join(web_id_list)}') and keywords!='' and  keywords!='_' LIMIT {n}"""
+        print(query)
+        data = DBhelper('dione').ExecuteSelect(query)
+        if is_join:
+            keywords_list = [' '.join([k.strip() for k in kw[0].split(',')]) for kw in data]
+        else:
+            keywords_list = [[k.strip() for k in kw[0].split(',')] for kw in data]
+        return keywords_list
+
+
+    @staticmethod
+    def train_idf_sklearn(keywords_list, chunk_size=1000,is_save=False, filefolder=None, filename='idf_train.txt'):
+        vectorizer = CountVectorizer()
+        vt = vectorizer.fit_transform(keywords_list).toarray()
+        idf_array = np.log10(vt.shape[1] / np.sum(vt, axis=0)) ## actually is tf-idf but tf=1
+        word_list = vectorizer.get_feature_names()  # 詞袋
+        n_keywords = len(word_list)
+        keywords_idf = {}
+        for i,(word,idf) in enumerate(zip(word_list, idf_array)):
+            keywords_idf.update({word: idf})
+            if i%chunk_size==0:
+                if is_save:
+                    print(f"save {i}/{n_keywords} round")
+                    Composer.save_idf_file(keywords_idf, filefolder=filefolder, filename=filename)
+                    # keywords_idf = {}
+            elif i==n_keywords-1:
+                if is_save:
+                    print('save last round')
+                    Composer.save_idf_file(keywords_idf, filefolder=filefolder, filename=filename)
+        return keywords_idf
+
+    @staticmethod
+    def train_idf(keywords_list, is_save=False, filefolder=None, filename='idf_train.txt'):
+        keywords_flatten = list(set(Composer.flatten(keywords_list)))
+        keywords_idf = {}
+        n_articles = len(keywords_list)
+        n_keywords = len(keywords_flatten)
+        for i,keyword in enumerate(keywords_flatten):
+            count = 0
+            for article_keywords in keywords_list:
+                if keyword in article_keywords:
+                    count += 1
+            idf = math.log(n_articles/count ,10)
+            keywords_idf.update({keyword: idf})
+            if i%1000==0:
+                print(f"finish train idf {i}/{n_keywords}")
+                if is_save:
+                    Composer.save_idf_file(keywords_idf, filefolder=filefolder, filename=filename)
+                    keywords_idf = {}
+            elif i==n_keywords-1:
+                if is_save:
+                    print('save last round')
+                    Composer.save_idf_file(keywords_idf, filefolder=filefolder, filename=filename)
+        return keywords_idf
+
+    @staticmethod
+    def save_idf_file(keywords_idf, filefolder=None, filename='idf_train.txt'):
+        if filefolder==None:
+            filefolder = os.path.join(ROOT_DIR, 'jieba_based')
+        path = os.path.join(filefolder, filename)
+        if os.path.exists(path):
+            mode = 'a'
+        else:
+            mode = 'w'
+        with open(path, mode, encoding='utf-8') as f:
+            for keyword, idf in keywords_idf.items():
+                if len(keyword.split(' '))==1:
+                    f.write(f"{keyword} {idf}\n")
+
+    @staticmethod
+    def flatten(keywords_list):
+        keywords_flatten = [k for kw in keywords_list for k in kw]
+        return keywords_flatten
+
+    @staticmethod
+    def articles_to_keywords(df_articles, preserve_pattern="[\u4E00-\u9FFF|a-zA-Z]*", is_join=False):
+        jieba_base = Composer_jieba()
+        jieba_base.set_config()
+        jieba_base.get_stopword_list()
+        keywords_cut = []
+        n = df_articles.shape[0]
+        for i, row in df_articles.iterrows():
+            articles = row[0]
+            ## pattern for removing https
+            articles_clean = jieba_base.filter_str(articles, pattern="https:\/\/([0-9a-zA-Z.\/]*)")
+            ## pattern for removing symbol, -,+~.
+            # articles_clean = jieba_base.filter_symbol(articles_clean)
+            articles_clean = jieba_base.preserve_str(articles_clean, pattern=preserve_pattern)
+            keyword_list = jieba.lcut(articles_clean)
+            # keyword_list = jieba.analyse.extract_tags(articles_clean, topK=80)[::-1]
+            # keyword_list = Composer_jieba().clean_keyword(keyword_list, stopwords)  ## remove stopwords
+            keyword_list = Composer_jieba().filter_quantifier(keyword_list)  ## remove number+quantifier, ex: 5.1萬
+            # keyword_list = Composer_jieba().filter_str_list(keyword_list, pattern="[0-9]{2}")  ## remove 2 digit number
+            # keyword_list = Composer_jieba().filter_str_list(keyword_list, pattern="[0-9.]*")  ## remove floating
+            keyword_list = Composer_jieba().filter_str_list(keyword_list,
+                                                            pattern="[a-z]{1,4}|[A-Z]{2}")  ## remove 1-4 lowercase letter and 2 Upper
+            keyword_list = [keyword for keyword in keyword_list if keyword != '' and len(keyword)>1]  ## remove blank
+            keyword_list = list(set(keyword_list)) ## tf = 1
+            # keywords = ','.join(keyword_list)  ## add keywords
+            if is_join:
+                keywords_cut += [' '.join(keyword_list)] ## for sklearn
+            else:
+                keywords_cut += [keyword_list]
+            if i%500==0:
+                print(f"finish cut {i}/{n}")
+        return keywords_cut
+
+    @staticmethod
+    def main_save_train_idf(keywords_list=None, n_articles=100, offset_articles=0, n_keywords=None, is_save=True, filename='idf_train.txt'):
+        df_articles = Composer.fetch_no_keyword_articles(LIMIT=n_articles, OFFSET=offset_articles)
+        keywords_cut = Composer.articles_to_keywords(df_articles)
+        if keywords_list==None:
+            keywords_list = Composer.fetch_keywords(n_keywords)
+        keywords_collect = keywords_list + keywords_cut
+        del df_articles, keywords_cut, keywords_list
+        keyword_idf = Composer.train_idf(keywords_collect, is_save=is_save, filename=filename)
+        return keyword_idf
+
 
 if __name__ == '__main__':
+    # n_articles = 100000
+    # offset_list = np.arange(0, 10000000, n_articles)
+    # keywords_list = Composer.fetch_keywords(None)
+    # for offset in offset_list:
+    #     keyword_idf = Composer.main_save_train_idf(keywords_list, n_articles=n_articles, offset_articles=offset, filename='idf_train_all.txt')
 
-    composer = Composer()
+
+
+    # keywords_list = Composer.fetch_keywords(None)
+    keyword_idf = Composer.main_save_train_idf(keywords_list=None, n_articles=200000, offset_articles=0, filename='idf_train_200000.txt')
+
+
+    # from sklearn.feature_extraction.text import TfidfTransformer
+    # from sklearn.feature_extraction.text import CountVectorizer
+    #
+    #
+    # keywords_list = Composer.fetch_keywords(50)
+    # df_articles = Composer.fetch_no_keyword_articles(LIMIT=50, OFFSET=0)
+    # keywords_cut = Composer.articles_to_keywords(df_articles)
+    # keywords_all = keywords_list + keywords_cut
+    # vectorizer = CountVectorizer()  # 該類會將文字中的詞語轉換為詞頻矩陣，矩陣元素a[i][j] 表示j詞在i類文字下的詞頻
+    # transformer = TfidfTransformer()  # 該類會統計每個詞語的tf-idf權值
+    #
+    # tfidf = transformer.fit_transform(
+    #     vectorizer.fit_transform(keywords_all))  # 第一個fit_transform是計算tf-idf，第二個fit_transform是將文字轉為詞頻矩陣
+    # word = vectorizer.get_feature_names()  # 獲取詞袋模型中的所有詞語
+    #
+    # vt = vectorizer.fit_transform(keywords_all).toarray()
+    # idf = np.log10(vt.shape[1]/np.sum(vt, axis=0))
+    # word = vectorizer.get_feature_names() #詞袋
+    
+
+    # articles = Composer.fetch_no_keyword_articles(100)
+    # df_articles = pd.DataFrame(articles, columns=['article'])
+    #
+    # jieba_base = Composer_jieba()
+    # all_hashtag = jieba_base.set_config()
+    # stopwords = jieba_base.get_stopword_list()
+    #
+    # keywords_cut = Composer.articles_to_keywords(df_articles)
+    #
+    # keywords_cut = []
+    # for i,row in df_articles.iterrows():
+    #     articles = row[0]
+    #     # print(row)
+    #     ## pattern for removing https
+    #     articles_clean = jieba_base.filter_str(articles, pattern="https:\/\/([0-9a-zA-Z.\/]*)")
+    #     ## pattern for removing symbol, -,+~.
+    #     articles_clean = jieba_base.filter_symbol(articles_clean)
+    #     keyword_list = jieba.analyse.extract_tags(articles_clean, topK=80)[::-1]
+    #     keyword_list = Composer_jieba().clean_keyword(keyword_list, stopwords)  ## remove stopwords
+    #     keyword_list = Composer_jieba().filter_quantifier(keyword_list)  ## remove number+quantifier, ex: 5.1萬
+    #     keyword_list = Composer_jieba().filter_str_list(keyword_list, pattern="[0-9]{2}")  ## remove 2 digit number
+    #     keyword_list = Composer_jieba().filter_str_list(keyword_list, pattern="[0-9.]*")  ## remove floating
+    #     keyword_list = Composer_jieba().filter_str_list(keyword_list, pattern="[a-z]{1,4}|[A-Z]{2}")  ## remove 1-4 lowercase letter and 2 Upper
+    #     keyword_list = [keyword for keyword in keyword_list if keyword != '']  ## remove blank
+    #     keyword_list = list(set(keyword_list))
+    #     # keywords = ','.join(keyword_list)  ## add keywords
+    #     keywords_cut += [keyword_list]
+    # keywords = Composer.fetch_keywords(100)
+    # keywords_list = [[k.strip() for k in kw[0].split(',')] for kw in keywords]
+    # keywords_flatten = [k for kw in keywords_list for k in kw]
+    #
+    # keywords_collect = keywords_list + keywords_cut
+    # keyword_idf = Composer.train_idf(keywords_collect, is_save=True)
+
+
+
+    # from jieba_based import foler_path
+
+
+    # Composer.save_idf_file(keyword_idf)
+    # df_keywords = pd.DataFrame(keywords, columns=['keywords'])
+
+    # idf = f"{keyword} {idf}\n"
+
+    # composer = Composer()
     ############## extract wiki from .xml.bz2 to .txt ###############
     # composer.extract_wiki(path_read='../gitignore/wiki/zhwiki-20211101-pages-articles-multistream.xml.bz2', path_write='20211101_wiki_text.txt')
     ############## extract wiki from .xml.bz2 to .txt ###############
@@ -198,8 +423,8 @@ if __name__ == '__main__':
     #              path_write='word2vec_zhonly_remove_one_v300m20w10.model', vector_size=300, min_count=20, window_size=10)
     # composer.fit(path_read='20211101_wiki_text_seg_zhonly_remove_one.txt',
     #              path_write='word2vec_zhonly_remove_one_v150m5w10.model', vector_size=150, min_count=5, window_size=10)
-    composer.fit(path_read='20211101_wiki_text_seg_zhonly_remove_one.txt',
-                 path_write='word2vec_zhonly_remove_one_v300m100w5.model', vector_size=300, min_count=100, window_size=5)
+    # composer.fit(path_read='20211101_wiki_text_seg_zhonly_remove_one.txt',
+    #              path_write='word2vec_zhonly_remove_one_v300m100w5.model', vector_size=300, min_count=100, window_size=5)
     ############## train word embedding ###############
 
     ############## load word embedding model ###############
