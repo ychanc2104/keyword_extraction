@@ -65,7 +65,7 @@ app = FastAPI(title="CutApp", description=description, openapi_tags=tags_metadat
 
 ## jieba config
 composer = Composer()
-composer.set_config(filename_stopwords='stop_words.txt', filename_idf='idf_train_200000.txt',
+composer.set_config(filename_stopwords='stop_words.txt', filename_idf='idf_train_1000000.txt',
                    filename_dictionary='idf_POS_collect.txt', filename_userdict='user_dict.txt')  ## add all user dictionary (add_words, google_trend, all_hashtag)
 stopwords = composer.get_stopword_list()
 ROOT_DIR = ROOT_DIR
@@ -125,7 +125,7 @@ def show_stopword():
     return {"message": "show current stop words", "data": stopwords}
 
 @app.put("/word/init", tags=["Initialize config"])
-def init_config(filename_stopwords: str='stop_words.txt', filename_idf: str='idf_train_200000.txt',
+def init_config(filename_stopwords: str='stop_words.txt', filename_idf: str='idf_train_1000000.txt',
                 filename_dictionary: str='idf_POS_collect.txt', filename_userdict: str='user_dict.txt'):
     global stopwords, composer
     ## init dictionary
@@ -135,7 +135,7 @@ def init_config(filename_stopwords: str='stop_words.txt', filename_idf: str='idf
     return {"message": "finish resetting config"}
 
 @app.put("/word/idf/init", tags=["Reset idf file for keyword_extraction"])
-def reset_keyword_idf(filename: str='idf_train_120000.txt'):
+def reset_keyword_idf(filename: str='idf_train_1000000.txt'):
     global composer
     composer._load_kw_config(filename_idf=filename)
     return {"message": "finish resetting keyword config"}

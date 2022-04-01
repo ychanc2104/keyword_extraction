@@ -22,7 +22,7 @@ class Composer_jieba:
                                      'setn', 'nownews']
         self.ROOT_DIR = ROOT_DIR
 
-    def set_config(self, filename_stopwords='stop_words.txt', filename_idf='idf_train_200000.txt',
+    def set_config(self, filename_stopwords='stop_words.txt', filename_idf='idf_train_1000000.txt',
                    filename_dictionary='idf_POS_collect.txt', filename_userdict='user_dict.txt'):
         # jieba_base = Composer_jieba()
         jieba.re_han_default = re.compile("([\u4E00-\u9FD5a-zA-Z0-9+#&\._% -]+)", re.U) ## English word can be recognized, ex: macbook pro
@@ -38,7 +38,7 @@ class Composer_jieba:
         return all_hashtag
 
     @timing
-    def _load_kw_config(self, filename_stopwords='stop_words.txt', filename_idf='idf_train_200000.txt'):
+    def _load_kw_config(self, filename_stopwords='stop_words.txt', filename_idf='idf_train_1000000.txt'):
         # jieba.analyse.set_stop_words(f'{self.ROOT_DIR}/jieba_based/stop_words.txt')
         # jieba.analyse.set_idf_path(f'{self.ROOT_DIR}/jieba_based/idf_collect.txt')
         jieba.analyse.set_stop_words(os.path.join(foler_path, filename_stopwords))
