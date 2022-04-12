@@ -5,7 +5,6 @@ import pandas as pd
 import jieba.analyse
 import numpy as np
 
-
 ## web_id: newtalk, nownews, moneyweekly, gvm
 
 @timing
@@ -27,10 +26,11 @@ def fetch_no_keyword_articles(web_id, id_offset=0):
     df_article = pd.DataFrame(data, columns=['id', 'web_id', 'article'])
     return df_article
 
-def save2csv(web_id, df_article, df_keywords, df_addwords):
-    df_article.to_csv(f"{web_id}_articles.csv")
-    df_keywords.to_csv(f"{web_id}_keywords.csv")
-    df_addwords.to_csv(f"{web_id}_addwords.csv")
+def save2xlsx(web_id, df_article, df_keywords):
+
+    df_article.to_excel(f"{web_id}_articles.xlsx", index=False)
+    df_keywords.to_excel(f"{web_id}_keywords.xlsx", index=False)
+    # df_addwords.to_csv(f"{web_id}_addwords.csv")
 
 
 @timing
@@ -42,6 +42,7 @@ def fetch_id_record():
     for d in data:
         id_record_dict.update({d[0]:d[1]})
     return id_record_dict
+
 
 @timing
 def update_id_record(id_record_dict, update_SQL=False):
@@ -82,10 +83,10 @@ if __name__ == '__main__':
             keyword_list = Composer_jieba().clean_keyword(keyword_list, stopwords)[:10]  ## remove stopwords
             keyword_list_all += keyword_list
 
-        df_keywords = pd.DataFrame(keyword_list_all, columns=['keywords'])
+        df_keywords = pd.DataFrame(list(set(keyword_list_all)), columns=['keywords'])
         df_keywords['disable'] = np.zeros(df_keywords.shape).astype(int)
-        df_addwords = pd.DataFrame()
-        save2csv(web_id, df_article, df_keywords, df_addwords)
+        df_keywords['addwords'] = ' '
+        save2xlsx(web_id, df_article, df_keywords)
         ## update id_record
         df_id_record = update_id_record(id_record_dict, update_SQL=False)
 
