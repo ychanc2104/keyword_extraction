@@ -1,5 +1,5 @@
 import pandas as pd
-from db.mysqlhelper import MySqlHelper
+from db import MySqlHelper, DBhelper
 from media.Media import Media
 from basic.date import get_date_shift, datetime_to_str, get_yesterday, to_datetime, get_today
 from basic.decorator import timing
@@ -11,15 +11,37 @@ def fetch_usertag(web_id, table='usertag'):
     query = f"SELECT uuid, token, usertag FROM {table} where expired_date>='{date_now}' and web_id='{web_id}'"
     # query = f"SELECT uuid, token, usertag FROM usertag where web_id='{web_id}'"
     print(query)
-    data = MySqlHelper('missioner').ExecuteSelect(query)
+    data = DBhelper('missioner').ExecuteSelect(query)
     df_map_save = pd.DataFrame(data=data, columns=['uuid', 'token', 'usertag'])
     return df_map_save
+
+@timing
+def fetch_black_list_keywords(web_id):
+    query = f"""SELECT name FROM BW_list where web_id='{web_id}' and property=0"""
+    print(query)
+    data = DBhelper('missioner', is_ssh=True).ExecuteSelect(query)
+    black_list = [d[0] for d in data]
+    return black_list
+
+@timing
+def fetch_BW_list_keywords(web_id):
+    query = f"""SELECT name,property FROM BW_list where web_id='{web_id}'"""
+    print(query)
+    data = DBhelper('missioner', is_ssh=True).ExecuteSelect(query)
+    black_list, white_list = [], []
+    for d in data:
+        keyword, property = d
+        if property==0: ## black
+            black_list += [keyword]
+        elif property==1:
+            white_list += [keyword]
+    return black_list, white_list
 
 def delete_expired_rows(web_id, table='usertag', is_UTC0=False, jump2gcp=True):
     date_now = datetime_to_str(get_today(is_UTC0=is_UTC0))
     query = f"DELETE FROM {table} where expired_date<'{date_now}' and web_id='{web_id}'"
     print(query)
-    MySqlHelper('missioner', is_ssh=jump2gcp).ExecuteUpdate(query)
+    DBhelper('missioner', is_ssh=jump2gcp).ExecuteUpdate(query)
 
 def count_unique(data_dict):
     for key, value in data_dict.items():
@@ -28,7 +50,8 @@ def count_unique(data_dict):
 
 
 @timing
-def keyword_usertag_report(web_id, expired_date=None, usertag_table='usertag', report_table='usertag_report', is_UTC0=False, jump2gcp=True):
+def keyword_usertag_report(web_id, expired_date=None, usertag_table='usertag', report_table='usertag_report',
+                           is_UTC0=False, jump2gcp=True, is_save=True, delete_expire=True):
     if expired_date==None:
         expired_date = get_date_shift(days=-4, to_str=True, is_UTC0=is_UTC0)
     # for web_id in web_id_all:
@@ -60,9 +83,15 @@ def keyword_usertag_report(web_id, expired_date=None, usertag_table='usertag', r
     i = 0
     for usertag, term_freq in usertag_dict.items():
         data_save[i] = {'web_id': web_id, 'usertag': usertag, 'term_freq': term_freq,
-                        'token_count': token_dict[usertag],
-                        'uuid_count': uuid_dict[usertag], 'expired_date': expired_date}
+                        'token_count': token_dict[usertag], 'uuid_count': uuid_dict[usertag],
+                        'expired_date': expired_date, 'enable': 1}
         i += 1
+    ## change enable=0 if in black list
+    black_list = fetch_black_list_keywords(web_id)
+    for i,data in data_save.items():
+        usertag = data['usertag']
+        if usertag in black_list:
+            data_save[i]['enable'] = 0
     ## build Dataframe
     df_freq_token = pd.DataFrame.from_dict(data_save, "index")
     ## remove too small token_count, remove small number first
@@ -81,19 +110,27 @@ def keyword_usertag_report(web_id, expired_date=None, usertag_table='usertag', r
     ## convert int to sort
     df_freq_token[['term_freq', 'token_count', 'uuid_count']] = df_freq_token[
         ['term_freq', 'token_count', 'uuid_count']].astype('int')
-    ## save to db, clean_df(*args, df_search, columns, columns_drop, columns_rearrange)
-    query = f"REPLACE INTO {report_table} (web_id, usertag, term_freq, token_count, uuid_count, expired_date) VALUES (:web_id, :usertag, :term_freq, :token_count, :uuid_count, :expired_date)"
-    MySqlHelper('missioner', is_ssh=jump2gcp).ExecuteUpdate(query, df_freq_token.to_dict('records'))
-    ## delete expired data
-    delete_expired_rows(web_id, table='usertag_report', jump2gcp=jump2gcp)
+    if is_save:
+        ## save to db, clean_df(*args, df_search, columns, columns_drop, columns_rearrange)
+        # query = f"REPLACE INTO {report_table} (web_id, usertag, term_freq, token_count, uuid_count, expired_date) VALUES (:web_id, :usertag, :term_freq, :token_count, :uuid_count, :expired_date)"
+        query = DBhelper.generate_insertDup_SQLquery(df_freq_token, report_table,
+                                                     ['term_freq','token_count','uuid_count','expired_date','enable'])
+        DBhelper('missioner', is_ssh=jump2gcp).ExecuteUpdate(query, df_freq_token.to_dict('records'))
+    if delete_expire:
+        ## delete expired data
+        delete_expired_rows(web_id, table='usertag_report', jump2gcp=jump2gcp)
     return df_freq_token
 
 
 if __name__ == '__main__':
-    web_id_all = Media().fetch_web_id()
-    # web_id_all = ['pixnet']
-    for web_id in web_id_all:
-        keyword_usertag_report(web_id, usertag_table='usertag', report_table='usertag_report', jump2gcp=True)
+    web_id = 'upmedia'
+    black_list, white_list = fetch_BW_list_keywords(web_id)
+    df_freq_token = keyword_usertag_report(web_id, usertag_table='usertag', report_table='usertag_report',
+                                           is_save=False, delete_expire=False)
+    # web_id_all = Media().fetch_web_id()
+    # # web_id_all = ['pixnet']
+    # for web_id in web_id_all:
+    #     keyword_usertag_report(web_id, usertag_table='usertag', report_table='usertag_report', jump2gcp=True)
 
 
     # t_start = time.time()

@@ -1,6 +1,6 @@
 import pandas as pd
 import datetime
-from db import MySqlHelper
+from db import DBhelper
 from basic import get_date_shift, get_yesterday, to_datetime, get_today, check_is_UTC0, timing, logging_channels, date_range, datetime_to_str
 from jieba_based import Composer_jieba
 from keyword_usertag_report import keyword_usertag_report, delete_expired_rows
@@ -21,13 +21,24 @@ def clean_keyword_list(keyword_list, stopwords, stopwords_usertag):
     return keyword_list
 
 @timing
+def fetch_white_list_keywords():
+    query = f"""SELECT name FROM BW_list where property=1"""
+    print(query)
+    data = DBhelper('missioner', is_ssh=True).ExecuteSelect(query)
+    white_list = [d[0] for d in data]
+    return white_list
+
+
+@timing
 def fetch_usertag_web_id_ex_day():
     query = "SELECT web_id, usertag_keyword_expired_day FROM web_id_table where usertag_keyword_enable=1"
     print(query)
-    data = MySqlHelper('dione').ExecuteSelect(query)
+    data = DBhelper('dione').ExecuteSelect(query)
     web_id_all = [d[0] for d in data]
     expired_day_all = [d[1] for d in data]
     return web_id_all, expired_day_all
+
+
 
 @timing
 def fetch_browse_record_yesterday_join(web_id, is_df=False, is_UTC0=False):
@@ -56,7 +67,7 @@ def fetch_browse_record_yesterday_join(web_id, is_df=False, is_UTC0=False):
                 AND t.web_id = '{web_id}'            
         """
     print(query)
-    data = MySqlHelper('dione').ExecuteSelect(query)
+    data = DBhelper('dione').ExecuteSelect(query)
     if is_df:
         df = pd.DataFrame(data, columns=['web_id', 'uuid', 'token', 'article_id', 'title', 'content', 'keywords'])
         return df
@@ -91,7 +102,7 @@ def fetch_browse_record_join(web_id, date, is_df=False):
                 AND t.web_id = '{web_id}'            
         """
     print(query)
-    data = MySqlHelper('dione').ExecuteSelect(query)
+    data = DBhelper('dione').ExecuteSelect(query)
     if is_df:
         df = pd.DataFrame(data, columns=['web_id', 'uuid', 'token', 'cert_web_id', 'article_id', 'title', 'content', 'keywords'])
         return df
@@ -100,7 +111,8 @@ def fetch_browse_record_join(web_id, date, is_df=False):
 
 @logging_channels(['clare_test'])
 @timing
-def main_update_subscriber_usertag(web_id, date, is_UTC0, jump2gcp, expired_day, jieba_base, stopwords, stopwords_usertag):
+def main_update_subscriber_usertag(web_id, date, is_UTC0, jump2gcp, expired_day, jieba_base, stopwords, stopwords_usertag,
+                                   is_save=False, delete_expire=False):
     ## fetch subscribed browse record
     # data = fetch_browse_record_yesterday_join(web_id, is_df=False, is_UTC0=is_UTC0)
     expired_date = get_date_shift(date_ref=date, days=-expired_day, to_str=True,
@@ -140,14 +152,15 @@ def main_update_subscriber_usertag(web_id, date, is_UTC0, jump2gcp, expired_day,
     ## filter nonsense data
     df_map = df_map[df_map.usertag != '']
 
-    # ## drop unuse columns and drop duplicates, and save to db
+    ## drop unused columns and drop duplicates, and save to db
     df_map_save = df_map.drop(columns=['news', 'keywords']).drop_duplicates(subset=['web_id','usertag','uuid','article_id'])
-    MySqlHelper.ExecuteUpdatebyChunk(df_map_save, db='missioner', table='usertag', chunk_size=100000, is_ssh=jump2gcp)
+    if is_save:
+        DBhelper.ExecuteUpdatebyChunk(df_map_save, db='missioner', table='usertag', chunk_size=100000, is_ssh=jump2gcp)
     ## delete expired data
     # delete_expired_rows(web_id, table='usertag', is_UTC0=is_UTC0, jump2gcp=jump2gcp)
     ### prepare keyword_usertag_report
     df_freq_token = keyword_usertag_report(web_id, expired_date, usertag_table='usertag', report_table='usertag_report',
-                                           is_UTC0=is_UTC0, jump2gcp=jump2gcp)
+                                           is_UTC0=is_UTC0, jump2gcp=jump2gcp, is_save=is_save, delete_expire=delete_expire)
 
     return df_map_save, df_freq_token
 
@@ -163,17 +176,25 @@ if __name__ == '__main__':
     # date_list = ['2022-02-21', '2022-02-22', '2022-02-23', '2022-02-24']
     ## set up config (add word, user_dict.txt ...)
     jieba_base = Composer_jieba()
-    all_hashtag = jieba_base.set_config()
+    jieba_base.set_config()
+    #  add white list keyword
+    white_list = fetch_white_list_keywords()
+    jieba_base.add_words(white_list)
+    #  get stopwords
     stopwords = jieba_base.get_stopword_list()
     stopwords_usertag = jieba_base.read_file('./jieba_based/stop_words_usertag.txt')
 
     web_id_all, expired_day_all = fetch_usertag_web_id_ex_day()
-    # web_id_all = ['btnet']
+    # web_id_all = ['managertoday']
     # expired_day_all = [4]
     ## get expired_date
     for date in date_list:
         for web_id, expired_day in zip(web_id_all, expired_day_all):
-            main_update_subscriber_usertag(web_id, date, is_UTC0, jump2gcp, expired_day, jieba_base, stopwords, stopwords_usertag)
+            df_map_save, df_freq_token = main_update_subscriber_usertag(web_id, date, is_UTC0,
+                                                                        jump2gcp, expired_day,
+                                                                        jieba_base, stopwords,
+                                                                        stopwords_usertag,
+                                                                        is_save=False, delete_expire=False)
 
 
 
