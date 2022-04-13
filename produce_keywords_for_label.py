@@ -8,7 +8,7 @@ import numpy as np
 ## web_id: newtalk, nownews, moneyweekly, gvm
 
 @timing
-def fetch_no_keyword_articles(web_id, id_offset=0):
+def fetch_no_keyword_articles(web_id, id_offset=0,limit=100):
     query = f"""
             SELECT 
                 id, web_id, CONCAT(title, ' ', content) AS article
@@ -19,7 +19,7 @@ def fetch_no_keyword_articles(web_id, id_offset=0):
                 AND keywords IN ('' , '_')
                 AND id>{id_offset}
             ORDER BY id
-            LIMIT 100
+            LIMIT {limit}
             """
     print(query)
     data = DBhelper('dione').ExecuteSelect(query)
@@ -64,24 +64,30 @@ if __name__ == '__main__':
 
     # for web_id in web_id_list:
     for web_id,id_record in id_record_dict.items():
-        ## fetch articles without keywords
-        df_article = fetch_no_keyword_articles(web_id, id_record)
-        ## update id_record
-        id_record_dict[web_id] = max(df_article['id'])
-        keyword_list_all = []
-        for article in df_article['article']:
-            ## pattern for removing https
-            article = jieba_base.filter_str(article, pattern="https:\/\/([0-9a-zA-Z.\/]*)")
-            ## pattern for removing symbol, -,+~.
-            article = jieba_base.filter_symbol(article)
-            keyword_list = jieba.analyse.extract_tags(article, topK=80)
-            ## remove 2 digit number, floating, 1-4 lowercase letter and 2 Upper
-            keyword_list = Composer_jieba().filter_str_list(keyword_list,
-                                                            pattern="[0-9.]*|[a-z]{1,4}|[A-Z]{2}")
-            ## remove number+quantifier, ex: 5.1萬
-            keyword_list = Composer_jieba().filter_quantifier(keyword_list)
-            keyword_list = Composer_jieba().clean_keyword(keyword_list, stopwords)[:10]  ## remove stopwords
-            keyword_list_all += keyword_list
+        limit = 100
+        keyword_count = 0
+        while (keyword_count <= 1000):
+            ## fetch articles without keywords
+            df_article = fetch_no_keyword_articles(web_id, id_record,limit)
+            ## update id_record
+            id_record_dict[web_id] = max(df_article['id'])
+            keyword_list_all = []
+            for article in df_article['article']:
+                ## pattern for removing https
+                article = jieba_base.filter_str(article, pattern="https:\/\/([0-9a-zA-Z.\/]*)")
+                ## pattern for removing symbol, -,+~.
+                article = jieba_base.filter_symbol(article)
+                keyword_list = jieba.analyse.extract_tags(article, topK=80)
+                ## remove 2 digit number, floating, 1-4 lowercase letter and 2 Upper
+                keyword_list = Composer_jieba().filter_str_list(keyword_list,
+                                                                pattern="[0-9.]*|[a-z]{1,4}|[A-Z]{2}")
+                ## remove number+quantifier, ex: 5.1萬
+                keyword_list = Composer_jieba().filter_quantifier(keyword_list)
+                keyword_list = Composer_jieba().clean_keyword(keyword_list, stopwords)[:10]  ## remove stopwords
+                keyword_list_all += keyword_list
+                keyword_count = np.shape(list(set(keyword_list_all)))[0]
+            if (keyword_count <= 1000):
+                limit += 5
 
         df_keywords = pd.DataFrame(list(set(keyword_list_all)), columns=['keywords'])
         df_keywords['disable'] = np.zeros(df_keywords.shape).astype(int)
