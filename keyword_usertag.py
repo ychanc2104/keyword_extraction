@@ -112,7 +112,7 @@ def fetch_browse_record_join(web_id, date, is_df=False):
 @logging_channels(['clare_test'])
 @timing
 def main_update_subscriber_usertag(web_id, date, is_UTC0, jump2gcp, expired_day, jieba_base, stopwords, stopwords_usertag,
-                                   is_save=False, delete_expire=False):
+                                   is_save=False, delete_expired_report=False):
     ## fetch subscribed browse record
     # data = fetch_browse_record_yesterday_join(web_id, is_df=False, is_UTC0=is_UTC0)
     expired_date = get_date_shift(date_ref=date, days=-expired_day, to_str=True,
@@ -160,7 +160,8 @@ def main_update_subscriber_usertag(web_id, date, is_UTC0, jump2gcp, expired_day,
     # delete_expired_rows(web_id, table='usertag', is_UTC0=is_UTC0, jump2gcp=jump2gcp)
     ### prepare keyword_usertag_report
     df_freq_token = keyword_usertag_report(web_id, expired_date, usertag_table='usertag', report_table='usertag_report',
-                                           is_UTC0=is_UTC0, jump2gcp=jump2gcp, is_save=is_save, delete_expire=delete_expire)
+                                           is_UTC0=is_UTC0, jump2gcp=jump2gcp, is_save=is_save,
+                                           delete_expired_report=delete_expired_report)
 
     return df_map_save, df_freq_token
 
@@ -194,7 +195,7 @@ if __name__ == '__main__':
                                                                         jump2gcp, expired_day,
                                                                         jieba_base, stopwords,
                                                                         stopwords_usertag,
-                                                                        is_save=False, delete_expire=False)
+                                                                        is_save=True, delete_expired_report=True)
 
 
 

@@ -51,7 +51,7 @@ def count_unique(data_dict):
 
 @timing
 def keyword_usertag_report(web_id, expired_date=None, usertag_table='usertag', report_table='usertag_report',
-                           is_UTC0=False, jump2gcp=True, is_save=True, delete_expire=True):
+                           is_UTC0=False, jump2gcp=True, is_save=True, delete_expired_report=True):
     if expired_date==None:
         expired_date = get_date_shift(days=-4, to_str=True, is_UTC0=is_UTC0)
     # for web_id in web_id_all:
@@ -116,7 +116,7 @@ def keyword_usertag_report(web_id, expired_date=None, usertag_table='usertag', r
         query = DBhelper.generate_insertDup_SQLquery(df_freq_token, report_table,
                                                      ['term_freq','token_count','uuid_count','expired_date','enable'])
         DBhelper('missioner', is_ssh=jump2gcp).ExecuteUpdate(query, df_freq_token.to_dict('records'))
-    if delete_expire:
+    if delete_expired_report:
         ## delete expired data
         delete_expired_rows(web_id, table='usertag_report', jump2gcp=jump2gcp)
     return df_freq_token
