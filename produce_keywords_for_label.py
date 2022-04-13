@@ -8,7 +8,7 @@ import numpy as np
 ## web_id: newtalk, nownews, moneyweekly, gvm
 
 @timing
-def fetch_no_keyword_articles(web_id, id_offset=0,limit=100):
+def fetch_no_keyword_articles(web_id, id_offset=0,limit=100,data_count=100):
     query = f"""
             SELECT 
                 id, web_id, CONCAT(title, ' ', content) AS article
@@ -22,6 +22,7 @@ def fetch_no_keyword_articles(web_id, id_offset=0,limit=100):
             LIMIT {limit}
             """
     print(query)
+    print(f'data_count={data_count}')
     data = DBhelper('dione').ExecuteSelect(query)
     df_article = pd.DataFrame(data, columns=['id', 'web_id', 'article'])
     return df_article
@@ -66,12 +67,14 @@ if __name__ == '__main__':
     for web_id,id_record in id_record_dict.items():
         limit = 100
         keyword_count = 0
+        data_count = 100
+        keyword_list_all = []
         while (keyword_count <= 1000):
             ## fetch articles without keywords
-            df_article = fetch_no_keyword_articles(web_id, id_record,limit)
+            df_article = fetch_no_keyword_articles(web_id, id_record,limit,data_count)
             ## update id_record
-            id_record_dict[web_id] = max(df_article['id'])
-            keyword_list_all = []
+
+
             for article in df_article['article']:
                 ## pattern for removing https
                 article = jieba_base.filter_str(article, pattern="https:\/\/([0-9a-zA-Z.\/]*)")
@@ -87,8 +90,10 @@ if __name__ == '__main__':
                 keyword_list_all += keyword_list
                 keyword_count = np.shape(list(set(keyword_list_all)))[0]
             if (keyword_count <= 1000):
-                limit += 5
-
+                id_record = max(df_article['id'])
+                limit = 5
+                data_count += 5
+        id_record_dict[web_id] = max(df_article['id'])
         df_keywords = pd.DataFrame(list(set(keyword_list_all)), columns=['keywords'])
         df_keywords['disable'] = np.zeros(df_keywords.shape).astype(int)
         df_keywords['addwords'] = ' '
