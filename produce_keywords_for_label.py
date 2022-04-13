@@ -5,11 +5,10 @@ import pandas as pd
 import jieba.analyse
 import numpy as np
 
-
 ## web_id: newtalk, nownews, moneyweekly, gvm
 
 @timing
-def fetch_no_keyword_articles(web_id, id_offset=0):
+def fetch_no_keyword_articles(web_id, id_offset=0,limit=100,data_count=100):
     query = f"""
             SELECT 
                 id, web_id, CONCAT(title, ' ', content) AS article
@@ -20,17 +19,19 @@ def fetch_no_keyword_articles(web_id, id_offset=0):
                 AND keywords IN ('' , '_')
                 AND id>{id_offset}
             ORDER BY id
-            LIMIT 100
+            LIMIT {limit}
             """
     print(query)
+    print(f'data_count={data_count}')
     data = DBhelper('dione').ExecuteSelect(query)
     df_article = pd.DataFrame(data, columns=['id', 'web_id', 'article'])
     return df_article
 
-def save2csv(web_id, df_article, df_keywords, df_addwords):
-    df_article.to_csv(f"{web_id}_articles.csv")
-    df_keywords.to_csv(f"{web_id}_keywords.csv")
-    df_addwords.to_csv(f"{web_id}_addwords.csv")
+def save2xlsx(web_id, df_article, df_keywords):
+
+    df_article.to_excel(f"{web_id}_articles.xlsx", index=False)
+    df_keywords.to_excel(f"{web_id}_keywords.xlsx", index=False)
+    # df_addwords.to_csv(f"{web_id}_addwords.csv")
 
 
 @timing
@@ -42,6 +43,7 @@ def fetch_id_record():
     for d in data:
         id_record_dict.update({d[0]:d[1]})
     return id_record_dict
+
 
 @timing
 def update_id_record(id_record_dict, update_SQL=False):
@@ -63,29 +65,39 @@ if __name__ == '__main__':
 
     # for web_id in web_id_list:
     for web_id,id_record in id_record_dict.items():
-        ## fetch articles without keywords
-        df_article = fetch_no_keyword_articles(web_id, id_record)
-        ## update id_record
-        id_record_dict[web_id] = max(df_article['id'])
+        limit = 100
+        keyword_count = 0
+        data_count = 100
         keyword_list_all = []
-        for article in df_article['article']:
-            ## pattern for removing https
-            article = jieba_base.filter_str(article, pattern="https:\/\/([0-9a-zA-Z.\/]*)")
-            ## pattern for removing symbol, -,+~.
-            article = jieba_base.filter_symbol(article)
-            keyword_list = jieba.analyse.extract_tags(article, topK=80)
-            ## remove 2 digit number, floating, 1-4 lowercase letter and 2 Upper
-            keyword_list = Composer_jieba().filter_str_list(keyword_list,
-                                                            pattern="[0-9.]*|[a-z]{1,4}|[A-Z]{2}")
-            ## remove number+quantifier, ex: 5.1萬
-            keyword_list = Composer_jieba().filter_quantifier(keyword_list)
-            keyword_list = Composer_jieba().clean_keyword(keyword_list, stopwords)[:10]  ## remove stopwords
-            keyword_list_all += keyword_list
+        while (keyword_count <= 1000):
+            ## fetch articles without keywords
+            df_article = fetch_no_keyword_articles(web_id, id_record,limit,data_count)
+            ## update id_record
 
-        df_keywords = pd.DataFrame(keyword_list_all, columns=['keywords'])
+
+            for article in df_article['article']:
+                ## pattern for removing https
+                article = jieba_base.filter_str(article, pattern="https:\/\/([0-9a-zA-Z.\/]*)")
+                ## pattern for removing symbol, -,+~.
+                article = jieba_base.filter_symbol(article)
+                keyword_list = jieba.analyse.extract_tags(article, topK=80)
+                ## remove 2 digit number, floating, 1-4 lowercase letter and 2 Upper
+                keyword_list = Composer_jieba().filter_str_list(keyword_list,
+                                                                pattern="[0-9.]*|[a-z]{1,4}|[A-Z]{2}")
+                ## remove number+quantifier, ex: 5.1萬
+                keyword_list = Composer_jieba().filter_quantifier(keyword_list)
+                keyword_list = Composer_jieba().clean_keyword(keyword_list, stopwords)[:10]  ## remove stopwords
+                keyword_list_all += keyword_list
+                keyword_count = np.shape(list(set(keyword_list_all)))[0]
+            if (keyword_count <= 1000):
+                id_record = max(df_article['id'])
+                limit = 5
+                data_count += 5
+        id_record_dict[web_id] = max(df_article['id'])
+        df_keywords = pd.DataFrame(list(set(keyword_list_all)), columns=['keywords'])
         df_keywords['disable'] = np.zeros(df_keywords.shape).astype(int)
-        df_addwords = pd.DataFrame()
-        save2csv(web_id, df_article, df_keywords, df_addwords)
+        df_keywords['addwords'] = ' '
+        save2xlsx(web_id, df_article, df_keywords)
         ## update id_record
         df_id_record = update_id_record(id_record_dict, update_SQL=False)
 

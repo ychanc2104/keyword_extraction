@@ -22,3 +22,5 @@
 /log_utils/slack_settings.json
 /log/
 */log/
+*.csv
+*.xlsx
