@@ -46,7 +46,7 @@ def fetch_id_record():
 
 
 @timing
-def update_id_record(id_record_dict, update_SQL=False):
+def update_id_record(id_record_dict, update_SQL=True):
     df_id_record = pd.DataFrame.from_dict(id_record_dict, orient='index', columns=['id_record']).reset_index()
     df_id_record.rename(columns={"index": "web_id"}, inplace=True)
     if update_SQL:
@@ -69,6 +69,7 @@ if __name__ == '__main__':
         keyword_count = 0
         data_count = 100
         keyword_list_all = []
+        df_article_all = pd.DataFrame(columns=['id', 'web_id', 'article'])
         while (keyword_count <= 1000):
             ## fetch articles without keywords
             df_article = fetch_no_keyword_articles(web_id, id_record,limit,data_count)
@@ -89,16 +90,18 @@ if __name__ == '__main__':
                 keyword_list = Composer_jieba().clean_keyword(keyword_list, stopwords)[:10]  ## remove stopwords
                 keyword_list_all += keyword_list
                 keyword_count = np.shape(list(set(keyword_list_all)))[0]
+            df_article_all = pd.concat([df_article_all, df_article])
             if (keyword_count <= 1000):
                 id_record = max(df_article['id'])
                 limit = 5
                 data_count += 5
+
         id_record_dict[web_id] = max(df_article['id'])
         df_keywords = pd.DataFrame(list(set(keyword_list_all)), columns=['keywords'])
         df_keywords['disable'] = np.zeros(df_keywords.shape).astype(int)
         df_keywords['addwords'] = ' '
-        save2xlsx(web_id, df_article, df_keywords)
+        save2xlsx(web_id, df_article_all, df_keywords)
         ## update id_record
-        df_id_record = update_id_record(id_record_dict, update_SQL=False)
+        df_id_record = update_id_record(id_record_dict, update_SQL=True)
 
 
