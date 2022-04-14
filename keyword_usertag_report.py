@@ -11,7 +11,7 @@ def fetch_usertag(web_id, table='usertag'):
     query = f"SELECT uuid, token, usertag FROM {table} where expired_date>='{date_now}' and web_id='{web_id}'"
     # query = f"SELECT uuid, token, usertag FROM usertag where web_id='{web_id}'"
     print(query)
-    data = DBhelper('missioner').ExecuteSelect(query)
+    data = DBhelper('missioner', is_ssh=True).ExecuteSelect(query)
     df_map_save = pd.DataFrame(data=data, columns=['uuid', 'token', 'usertag'])
     return df_map_save
 
@@ -41,7 +41,7 @@ def delete_expired_rows(web_id, table='usertag', is_UTC0=False, jump2gcp=True):
     date_now = datetime_to_str(get_today(is_UTC0=is_UTC0))
     query = f"DELETE FROM {table} where expired_date<'{date_now}' and web_id='{web_id}'"
     print(query)
-    DBhelper('missioner', is_ssh=jump2gcp).ExecuteUpdate(query)
+    DBhelper('missioner', is_ssh=jump2gcp).ExecuteDelete(query)
 
 def count_unique(data_dict):
     for key, value in data_dict.items():

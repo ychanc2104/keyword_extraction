@@ -58,6 +58,25 @@ class DBhelper:
         print(f"affected rows: {count}")
         return count
 
+    def ExecuteDelete(self, query, disconnect=True):
+        '''
+            输入非查詢SQL語句
+            输出：受影響的行數
+        '''
+        count = 0
+        try:
+            result = self.execute_raw_sql(query)
+            count = result.rowcount
+            self.session.commit()
+        except Exception as e:
+            error_log(e, ROOT_DIR=log_foler)
+            print(e)
+            self.session.rollback()
+        if disconnect:
+            self.session_close()
+        print(f"affected rows: {count}")
+        return count
+
     @staticmethod
     def ExecuteUpdatebyChunk(df, db, table, chunk_size=100000, is_ssh=False):
         """
