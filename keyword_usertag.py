@@ -121,7 +121,7 @@ def main_update_subscriber_usertag(web_id, date, is_UTC0, jump2gcp, expired_day,
     n_data = len(data)
     if n_data == 0:
         print('no valid data in dione.subscriber_browse_record')
-        return pd.DataFrame()
+        return pd.DataFrame(), pd.DataFrame()
     ## build usertag DataFrame
     j, data_save = 0, {}
     for i, d in enumerate(data):
@@ -186,7 +186,7 @@ if __name__ == '__main__':
     stopwords_usertag = jieba_base.read_file('./jieba_based/stop_words_usertag.txt')
 
     web_id_all, expired_day_all = fetch_usertag_web_id_ex_day()
-    # web_id_all = ['managertoday']
+    # web_id_all = ['ctnews']
     # expired_day_all = [4]
     ## get expired_date
     for date in date_list:
