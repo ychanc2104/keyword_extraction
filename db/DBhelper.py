@@ -77,8 +77,20 @@ class DBhelper:
         print(f"affected rows: {count}")
         return count
 
+    ## will lock table while optimizing
+    def ExecuteOptimize(self, table):
+        try:
+            self.execute_raw_sql(f"optimize table {table}")
+            self.session.commit()
+        except Exception as e:
+            error_log(e, ROOT_DIR=log_foler)
+            print(e)
+            self.session.rollback()
+        self.session_close()
+        print("finish optimizing table")
+
     @staticmethod
-    def ExecuteUpdatebyChunk(df, db, table, query=None, SQL_action=1,
+    def ExecuteUpdatebyChunk(df, db, table='', query=None, SQL_action=1,
                              update_col_list=[], chunk_size=100000, is_ssh=False):
         """
         iteratively update sql by chunk_size
