@@ -28,7 +28,7 @@ class DBhelper:
         self.connection = self.engine.connect()
         self.session = sessionmaker(bind=self.engine)(bind=self.connection)
     @logging_local(log_foler, log_traceback=False)
-    def ExecuteSelect(self, query, disconnect=False):
+    def ExecuteSelect(self, query, disconnect=True):
         '''
             输入查詢SQL語句
             输出：查詢的結果
@@ -78,7 +78,8 @@ class DBhelper:
         return count
 
     @staticmethod
-    def ExecuteUpdatebyChunk(df, db, table, chunk_size=100000, is_ssh=False):
+    def ExecuteUpdatebyChunk(df, db, table, query=None, SQL_action=1,
+                             update_col_list=[], chunk_size=100000, is_ssh=False):
         """
         iteratively update sql by chunk_size
 
@@ -87,7 +88,9 @@ class DBhelper:
         df: DataFrame
         db: str: schema name
         table: str: table name
-
+        query: str: operation of SQL, default using REPLACE INTO
+        SQL_action: int: not used if query!=None, 0:insert on duplicate key, other:replace into
+        update_col_list: list: not used if query!=None, for insert on duplicate key
         Returns
         -------
 
@@ -96,7 +99,13 @@ class DBhelper:
         if df.shape[0]==0:
             print("no available dat to import")
         else:
-            query = dbhelper.generate_update_SQLquery(df, table)
+            if query==None:
+                if SQL_action==0:
+                    query = dbhelper.generate_update_SQLquery(df, table)
+                else:
+                    update_col_list = df.columns if update_col_list==[] else update_col_list
+                    query = dbhelper.generate_insertDup_SQLquery(df, table, update_col_list)
+            # query = dbhelper.generate_update_SQLquery(df, table)
             dict_list = df.to_dict('records')
             n = int(math.ceil(len(dict_list)/chunk_size))
             if n<=1: ## directly import all
@@ -143,7 +152,7 @@ class DBhelper:
     #     '''
     # """
     @staticmethod
-    def generate_insertDup_SQLquery(df, table_name, update_col_list):
+    def generate_insertDup_SQLquery(df, table_name:str, update_col_list:list):
         columns = df.columns.values
         n_col = len(columns)
         query = f"INSERT INTO {table_name}"

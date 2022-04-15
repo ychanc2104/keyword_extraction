@@ -3,9 +3,8 @@ import jieba.analyse
 import numpy as np
 import datetime
 import re, os
-from basic.decorator import timing
+from basic import timing
 from opencc import OpenCC
-from db.mysqlhelper import MySqlHelper
 from db import DBhelper
 from definitions import ROOT_DIR
 ## jieba.analyse.set_stop_words, 可使extract keyword阻擋這些字（cut, 切字無法）
@@ -64,7 +63,7 @@ class Composer_jieba:
     @timing
     def fetch_hashtag(self):
         query = f"SELECT keywords FROM news_table WHERE keywords!='_' AND web_id!='thanhnien2021' AND web_id!='tuoitrexahoi'"
-        data = MySqlHelper('jupiter_new').ExecuteSelect(query)
+        data = DBhelper('jupiter_new').ExecuteSelect(query)
         hashtag_list = [d[0].split(',') for d in data]
         hashtag_list_flat = [item for sublist in hashtag_list for item in sublist]
 
@@ -74,7 +73,7 @@ class Composer_jieba:
 
     def fetch_gtrend_keywords(self):
         query = "SELECT keyword, relatedQueries from google_trend_keyword"
-        data = MySqlHelper('dione').ExecuteSelect(query)
+        data = DBhelper('dione').ExecuteSelect(query)
         keyword_list = []
         for d in data:
             if d[1] != '':
@@ -109,12 +108,7 @@ class Composer_jieba:
 
     ## no matter English upper or lower case
     def clean_keyword(self, keyword_list, stopwords):
-        # keyword_list_lower = [keyword.lower() for keyword in keyword_list]
         stopwords_lower = [stopword.lower() for stopword in stopwords]
-        # data_remove_stopword = []
-        # for keyword in keyword_list:
-        #     if keyword.lower() not in stopwords_lower:
-        #         data_remove_stopword += [[keyword]]
         data_clean = [word for word in keyword_list if word != ' ']
         data_remove_stopword = [word for word in data_clean if word.lower() not in stopwords_lower] ## compare with same lowercase
         return data_remove_stopword

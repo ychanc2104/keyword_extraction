@@ -186,18 +186,15 @@ if __name__ == '__main__':
     stopwords_usertag = jieba_base.read_file('./jieba_based/stop_words_usertag.txt')
 
     web_id_all, expired_day_all = fetch_usertag_web_id_ex_day()
-    # web_id_all = ['ctnews']
+    # web_id_all = ['btnet'] #btnet
     # expired_day_all = [4]
     ## get expired_date
     for date in date_list:
         for web_id, expired_day in zip(web_id_all, expired_day_all):
-            df_map_save, df_freq_token = main_update_subscriber_usertag(web_id, date, is_UTC0,
-                                                                        jump2gcp, expired_day,
-                                                                        jieba_base, stopwords,
-                                                                        stopwords_usertag,
-                                                                        is_save=True, delete_expired_report=True)
-
-
-
-
+            main_update_subscriber_usertag(web_id, date, is_UTC0,
+                                            jump2gcp, expired_day,
+                                            jieba_base, stopwords,
+                                            stopwords_usertag,
+                                            is_save=True,
+                                            delete_expired_report=True)
 
