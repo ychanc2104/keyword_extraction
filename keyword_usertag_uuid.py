@@ -256,10 +256,10 @@ if __name__ == '__main__':
     t_end_program = time.time()
     spent_time_program = t_end_program - t_start_outloop
     t_opt_uuid = time.time()
-    DBhelper('missioner').ExecuteOptimize('usertag_uuid')
+    DBhelper('missioner', is_ssh=True).ExecuteOptimize('usertag_uuid')
     dt_opt_uuid = time.time() - t_opt_uuid
     t_opt_stat = time.time()
-    DBhelper('missioner').ExecuteOptimize('usertag_uuid_stat')
+    DBhelper('missioner', is_ssh=True).ExecuteOptimize('usertag_uuid_stat')
     dt_opt_stat = time.time() - t_opt_stat
     message = f"""
     One round of keyword_usertag_uuid(all web_id) spent: {spent_time_program} s
