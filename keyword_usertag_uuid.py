@@ -225,12 +225,12 @@ def main_keyword_uuid(web_id, date, jieba_base, stopwords, stopwords_usertag):
         # remove length of usertag > SQL table limit
         df_usertag_save = df_usertag_save[df_usertag_save['usertag'].map(len) <= 64]
         query = DBhelper.generate_insertDup_SQLquery(df_usertag_save, 'usertag_uuid', ['web_id', 'date', 'hour', 'article_id'])
-        DBhelper.ExecuteUpdatebyChunk(df_usertag_save, 'missioner', query=query, chunk_size=100000)
+        DBhelper.ExecuteUpdatebyChunk(df_usertag_save, 'missioner', query=query, chunk_size=100000, is_ssh=True)
 
     ## save uuid_stat at a time (all web_id)
     df_uuid_stat_all = collect_usertag_uuid_stat(web_id, datetime_list[:-1]).query(f"num_usertag<32767") ## smallint in SQL
     query_stat = DBhelper.generate_insertDup_SQLquery(df_uuid_stat_all, 'usertag_uuid_stat', ['num_usertag'])
-    DBhelper.ExecuteUpdatebyChunk(df_uuid_stat_all, 'missioner', query=query_stat, chunk_size=100000)
+    DBhelper.ExecuteUpdatebyChunk(df_uuid_stat_all, 'missioner', query=query_stat, chunk_size=100000, is_ssh=True)
 
 if __name__ == '__main__':
     ## set is in UTC+0 or UTC+8
