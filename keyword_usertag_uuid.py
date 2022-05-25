@@ -38,7 +38,7 @@ def fetch_browse_record(web_id, datetime_start, datetime_end, is_df=False):
                 l.content,
                 l.keywords
             FROM
-                browse_record s
+                browse_record1 s
                     INNER JOIN
                 article_list l ON s.article_id = l.signature                
                     AND s.web_id = '{web_id}'                
