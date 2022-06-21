@@ -5,6 +5,7 @@ import numpy as np
 from gAPI.googleoauth2 import GoogleOAuth2
 from gAPI.gads import GoogleAds
 from db.mysqlhelper import MySqlHelper
+from db import DBhelper
 from basic.date import to_datetime, get_date_shift, get_today, datetime_to_str
 
 
@@ -121,6 +122,7 @@ class GoogleSearchConsole(GoogleOAuth2):
                 web_id, clicks, impressions, position, query, page, date = row
             else:
                 web_id, clicks, impressions, position, page, date = row
+            page = page.lower()
             if page in url_dict.keys():
                 product_id, title, description = url_dict[page]
             else:  # not in
@@ -139,6 +141,7 @@ class GoogleSearchConsole(GoogleOAuth2):
     def fetch_title_by_url(self, web_id, url_list, ):
         query = f"SELECT url, product_id, title, description FROM report_data.item_list WHERE web_id='{web_id}' and url in ("
         for i, url in enumerate(url_list):
+            url = url.lower()
             query += f"'{url}', "
             if i == len(url_list) - 1:
                 query += f"'{url}')"
@@ -197,12 +200,46 @@ if __name__ == '__main__':
     ############### init db ###############
     web_id = 'draimior'
     siteUrl = 'https://www.draimior-global.com/'
-    date_start = '2021-08-31' ## '2021-09-06'
-    date_end = '2021-09-06' ## '2021-09-30'
+    date_start = '2022-04-01' ## '2021-09-06'
+    date_end = '2022-06-20' ## '2021-09-30'
     g_search = GoogleSearchConsole()
     # df_search_console_query = g_search.fetch_search_console(web_id, date_start, date_end, siteUrl,
     #                                                  rowLimit=25000, dimensions=['query', 'date', 'country', 'device'])
     g_search.save_4db_by_date(web_id, siteUrl, date_start, date_end)
+
+    # df_search_console_page_query = g_search.fetch_search_console(web_id, date_start, date_end, siteUrl,
+    #                                                          rowLimit=25000, dimensions=['query', 'page', 'date'])
+
+    # is_page_query = True
+    # url_list = list(set(df_search_console_page_query['page']))
+    # url_clean_list = list(set([url.split('?')[0] for url in url_list]))
+    # web_id = df_search_console_page_query['web_id'][0]
+    # url_dict = g_search.fetch_title_by_url(web_id, url_clean_list)
+    # data_dict = {}
+    # for index, row in df_search_console_page_query.iterrows():
+    #     if is_page_query:  ## page table and page_query table
+    #         web_id, clicks, impressions, position, query, page, date = row
+    #     else:
+    #         web_id, clicks, impressions, position, page, date = row
+    #     page = page.lower()
+    #     if page.lower() in url_dict.keys():
+    #         product_id, title, description = url_dict[page.lower()]
+    #     else:  # not in
+    #         product_id, title, description = '_', '_', '_'
+    #     if is_page_query:  ## page table and page_query table
+    #         data_dict[index] = {'web_id': web_id, 'product_id': product_id, 'title': title, 'description': description,
+    #                             'clicks': clicks, 'impressions': impressions, 'position': position, 'page': page,
+    #                             'query': query, 'date': date}
+    #     else:
+    #         data_dict[index] = {'web_id': web_id, 'product_id': product_id, 'title': title, 'description': description,
+    #                             'clicks': clicks, 'impressions': impressions, 'position': position, 'page': page,
+    #                             'date': date}
+    # df_reformat = pd.DataFrame.from_dict(data_dict, "index")
+
+
+
+    # df_search_console_page_query2 = g_search.reformat_title_from_url(df_search_console_page_query, is_page_query=True)
+
     ############### init db ###############
 
 
