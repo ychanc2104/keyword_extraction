@@ -3,7 +3,8 @@ import datetime
 from gAPI.googleoauth2 import GoogleOAuth2
 from gAPI import GoogleAds
 from db import DBhelper
-from basic import to_datetime, get_date_shift, datetime_to_str, curdate
+from basic import to_datetime, get_date_shift, datetime_to_str, curdate, logging_channels
+from definitions import ROOT_DIR
 
 # check Method Resolution Order, MRO, GoogleSearchConsole.__mro__
 class GoogleSearchConsole(GoogleOAuth2, GoogleAds):
@@ -12,6 +13,7 @@ class GoogleSearchConsole(GoogleOAuth2, GoogleAds):
         super().__init__()
 
     ## update 4db after initalize table
+    @logging_channels(['clare_test'], save_local=True, ROOT_DIR=ROOT_DIR)
     def update_4db(self, web_id, siteUrl, rowLimit=25000, save=True):
         date_end = datetime_to_str(curdate(utc=8))
         date_start = datetime_to_str(get_date_shift(date_ref=date_end, days=3))
@@ -21,7 +23,9 @@ class GoogleSearchConsole(GoogleOAuth2, GoogleAds):
         df_page = self.save_to_page_table(web_id, date_start, date_end, siteUrl, rowLimit, save)
         df_device = self.save_to_device_table(web_id, date_start, date_end, siteUrl, rowLimit, save)
         return df_query, df_page_query, df_page, df_device
+
     ## for init table, fetch and save data day by day
+    @logging_channels(['clare_test'], save_local=True, ROOT_DIR=ROOT_DIR)
     def save_4db_by_date(self, web_id, siteUrl, date_start='2021-01-01', date_end=None):
         if date_end==None:
             date_end = datetime_to_str(curdate())

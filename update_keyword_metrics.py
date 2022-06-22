@@ -1,7 +1,6 @@
 from db import DBhelper
 from gAPI import GoogleAds
-from basic.date import datetime_to_str, curdate
-from basic.decorator import timing
+from basic import datetime_to_str, curdate, timing, logging_channels
 import pandas as pd
 from definitions import ROOT_DIR
 ## fetch keywords yesterday + today
@@ -45,20 +44,6 @@ def fetch_new_gconsole_keywords():
     return keyword_list
 
 
-def save_init_monthly_keyword_metrics(n=300, save=True):
-    keyword_list_gtrend = fetch_new_gtrend_keywords()
-    keyword_list_gconsole = fetch_new_gconsole_keywords()
-    keyword_list = list(set(keyword_list_gtrend + keyword_list_gconsole))[:n]
-    df_monthly_keyword_metrics = GoogleAds()._generate_12month_keyword_metrics(keyword_list)
-    df_monthly_keyword_metrics = add_unavailable(keyword_list, df_monthly_keyword_metrics)
-    if save:
-        ## generate sql script by DataFrame
-        query_history = DBhelper.generate_insertDup_SQLquery(df_monthly_keyword_metrics, 'google_ads_metrics_history',
-                                                        list(df_monthly_keyword_metrics.columns))
-        ## save to metrics tables
-        DBhelper('roas_report').ExecuteUpdate(query_history, df_monthly_keyword_metrics.to_dict('records'))
-    return keyword_list, df_monthly_keyword_metrics
-
 ## add unavailable data
 def add_unavailable(keyword_list, df_monthly_keyword_metrics):
     add_dict = {}
@@ -76,20 +61,6 @@ def add_unavailable(keyword_list, df_monthly_keyword_metrics):
     return df
 
 
-def save_latest_month_keyword_metrics(n=50, save=True):
-    keyword_list = fetch_update_keywords(n=n)
-    df_monthly_keyword_metrics = GoogleAds()._generate_12month_keyword_metrics(keyword_list)
-    if df_monthly_keyword_metrics.shape[0] == 0:
-        print("Today's budget is ran out")
-        return keyword_list, []
-    else:
-        ## use update on duplicate key (not updating if existing)
-        if save:
-            query = DBhelper.generate_insertDup_SQLquery(df_monthly_keyword_metrics, 'google_ads_metrics_history',
-                                                            ['monthly_traffic'])
-            ## save to metrics tables
-            DBhelper('roas_report').ExecuteUpdate(query, df_monthly_keyword_metrics.to_dict('records'))
-        return keyword_list, df_monthly_keyword_metrics
 
 
 def fetch_update_keywords(n=50):
@@ -131,6 +102,43 @@ def fetch_update_keywords(n=50):
     keyword_list = [d[0] for d in data]
     return keyword_list
 
+@logging_channels(['clare_test'], save_local=True, ROOT_DIR=ROOT_DIR)
+def save_init_monthly_keyword_metrics(n=300, save=True):
+    keyword_list_gtrend = fetch_new_gtrend_keywords()
+    keyword_list_gconsole = fetch_new_gconsole_keywords()
+    keyword_list = list(set(keyword_list_gtrend + keyword_list_gconsole))[:n]
+    if keyword_list:
+        df_monthly_keyword_metrics = GoogleAds()._generate_12month_keyword_metrics(keyword_list)
+        df_monthly_keyword_metrics = add_unavailable(keyword_list, df_monthly_keyword_metrics)
+        if df_monthly_keyword_metrics.shape[0] == 0:
+            print("Today's budget is ran out")
+            return keyword_list, pd.DataFrame()
+        if save:
+            ## generate sql script by DataFrame
+            query_history = DBhelper.generate_insertDup_SQLquery(df_monthly_keyword_metrics, 'google_ads_metrics_history',
+                                                            list(df_monthly_keyword_metrics.columns))
+            ## save to metrics tables
+            DBhelper('roas_report').ExecuteUpdate(query_history, df_monthly_keyword_metrics.to_dict('records'))
+        return keyword_list, df_monthly_keyword_metrics
+    else:
+        print("no available keyword to be updated")
+        return [], pd.DataFrame()
+
+@logging_channels(['clare_test'], save_local=True, ROOT_DIR=ROOT_DIR)
+def save_latest_month_keyword_metrics(n=50, save=True):
+    keyword_list = fetch_update_keywords(n=n)
+    df_monthly_keyword_metrics = GoogleAds()._generate_12month_keyword_metrics(keyword_list)
+    if df_monthly_keyword_metrics.shape[0] == 0:
+        print("Today's budget is ran out")
+        return keyword_list, []
+    else:
+        ## use update on duplicate key (not updating if existing)
+        if save:
+            query = DBhelper.generate_insertDup_SQLquery(df_monthly_keyword_metrics, 'google_ads_metrics_history',
+                                                            ['monthly_traffic'])
+            ## save to metrics tables
+            DBhelper('roas_report').ExecuteUpdate(query, df_monthly_keyword_metrics.to_dict('records'))
+        return keyword_list, df_monthly_keyword_metrics
 
 ## update rate: twice per day (13:30, 23:30)
 if __name__ == '__main__':
