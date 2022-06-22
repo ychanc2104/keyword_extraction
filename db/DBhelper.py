@@ -101,7 +101,7 @@ class DBhelper:
         db: str: schema name
         table: str: table name
         query: str: operation of SQL, default using REPLACE INTO
-        SQL_action: int: not used if query!=None, 0:insert on duplicate key, other:replace into
+        SQL_action: int: not used if query!=None, other:insert on duplicate key, 0:replace into
         update_col_list: list: not used if query!=None, for insert on duplicate key
         Returns
         -------
