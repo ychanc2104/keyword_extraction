@@ -1,12 +1,12 @@
-from gAPI.gconsole import GoogleSearchConsole
-from basic.decorator import timing
-from db.mysqlhelper import MySqlHelper
+from gAPI import GoogleSearchConsole
+from basic import timing
+from db import DBhelper
 
 @timing
 def fetch_SEO_siteUrl_web_id():
     query = "SELECT web_id, siteUrl FROM seo_web_id_table where gconsole_enable=1"
     print(query)
-    data = MySqlHelper('roas_report').ExecuteSelect(query)
+    data = DBhelper('roas_report').ExecuteSelect(query)
     web_id_all = [d[0] for d in data]
     sitUrl_all = [d[1] for d in data]
     return web_id_all, sitUrl_all
@@ -14,9 +14,6 @@ def fetch_SEO_siteUrl_web_id():
 ## update google_search_console_query, google_search_console_device, google_search_console_page, google_search_console_page_query
 if __name__ == '__main__':
     ## setup parameters
-    # siteUrl = 'https://www.nanooneshop.com/' ## web_id = 'nanooneshop'
-    # web_id = 'nanooneshop'
-
     web_id_all, sitUrl_all = fetch_SEO_siteUrl_web_id()
     g_search = GoogleSearchConsole()
     for web_id, siteUrl in zip(web_id_all, sitUrl_all):

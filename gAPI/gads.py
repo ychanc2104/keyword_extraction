@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 from basic.date import get_today, datetime_to_str
 from google.ads.googleads.client import GoogleAdsClient
 from definitions import ROOT_DIR
@@ -15,6 +16,7 @@ _DEFAULT_LANGUAGE_ID = "1000"  # language ID for English
 ## update latest month on 10th day
 class GoogleAds:
     def __init__(self, config_name='google-ads.yaml', location_ids=['9075967'], language_id='1018', customer_id='6553682300'):
+        super().__init__()
         self.location_ids = location_ids  ## Taiwan: 9075967 (TW)
         self.language_id = language_id  ## zh_TW
         self.customer_id = customer_id
@@ -24,29 +26,33 @@ class GoogleAds:
                               'JULY':'07', 'AUGUST':'08', 'SEPTEMBER':'09', 'OCTOBER':'10', 'NOVEMBER':'11', 'DECEMBER':'12'}
         self.keyword_competition_levels = ['HIGH', 'MEDIUM', 'LOW', 'UNKNOWN', 'UNSPECIFIED']
 
+    ## get keywords metrics at a time
+    def _generate_12month_keyword_metrics(self, keyword_list):
+        n_keyword = len(keyword_list)
+        indexes = np.append(np.arange(0, n_keyword, 20), n_keyword)
+        df_keywords_metrics = pd.DataFrame()
+        for i in range(len(indexes)-1):
+            ## separate into serval pieces
+            keyword_list_sub = keyword_list[indexes[i]: indexes[i+1]]
+            print(f"saving query table..., keyword size is {n_keyword}, select index between {indexes[i]} and {indexes[i+1]}")
+            df_keywords_metrics = df_keywords_metrics.append(self.get_keyword_list_monthly_info(keyword_list_sub))
+        return df_keywords_metrics
+
+    def _generate_keyword_metrics(self, keyword_list):
+        n_keyword = len(keyword_list)
+        indexes = np.append(np.arange(0, n_keyword, 20), n_keyword)
+        df_keywords_metrics = pd.DataFrame()
+        for i in range(len(indexes)-1):
+            keyword_list_sub = keyword_list[indexes[i]: indexes[i+1]]
+            print(f"saving query table..., keyword size is {n_keyword}, select index between {indexes[i]} and {indexes[i+1]}")
+            df_keywords_metrics = df_keywords_metrics.append(self.get_keyword_list_info(keyword_list_sub))
+        return df_keywords_metrics
+
     def get_keyword_cpc(self, keyword):
-        client = self.client
-        location_ids = self.location_ids
-        language_id = self.language_id
-        customer_id = self.customer_id
         if type(keyword) == str:
             keyword = [keyword]
-        keyword_plan_idea_service = client.get_service("KeywordPlanIdeaService")
-        keyword_competition_level_enum = (client.enums.KeywordPlanCompetitionLevelEnum)
-        keyword_plan_network = (client.enums.KeywordPlanNetworkEnum.GOOGLE_SEARCH_AND_PARTNERS)
-        location_rns = self._map_locations_ids_to_resource_names(client, location_ids)
-        language_rn = client.get_service("LanguageConstantService").language_constant_path(language_id)
-        # Only one of the fields "url_seed", "keyword_seed", or
-        # "keyword_and_url_seed" can be set on the request, depending on whether
-        # keywords, a page_url or both were passed to this function.
-        request = client.get_type("GenerateKeywordIdeasRequest")
-        request.customer_id = customer_id
-        request.language = language_rn
-        request.geo_target_constants = location_rns
-        request.include_adult_keywords = False
-        request.keyword_plan_network = keyword_plan_network
-        request.keyword_seed.keywords.extend(keyword)
-
+        keyword_plan_idea_service = self.client.get_service("KeywordPlanIdeaService")
+        request = self._build_request(keyword)
         keyword_idea = keyword_plan_idea_service.generate_keyword_ideas(
             request=request
         ).results[0]
@@ -55,27 +61,8 @@ class GoogleAds:
         return low_price, high_price
 
     def get_keyword_list_monthly_info(self, keyword_list):
-        client = self.client
-        location_ids = self.location_ids
-        language_id = self.language_id
-        customer_id = self.customer_id
-
-        keyword_plan_idea_service = client.get_service("KeywordPlanIdeaService")
-        keyword_competition_level_enum = (client.enums.KeywordPlanCompetitionLevelEnum)
-        keyword_plan_network = (client.enums.KeywordPlanNetworkEnum.GOOGLE_SEARCH_AND_PARTNERS)
-        location_rns = self._map_locations_ids_to_resource_names(client, location_ids)
-        language_rn = client.get_service("LanguageConstantService").language_constant_path(language_id)
-        # Only one of the fields "url_seed", "keyword_seed", or
-        # "keyword_and_url_seed" can be set on the request, depending on whether
-        # keywords, a page_url or both were passed to this function.
-        request = client.get_type("GenerateKeywordIdeasRequest")
-        request.customer_id = customer_id
-        request.language = language_rn
-        request.geo_target_constants = location_rns
-        request.include_adult_keywords = False
-        request.keyword_plan_network = keyword_plan_network
-        request.keyword_seed.keywords.extend(keyword_list)
-
+        keyword_plan_idea_service = self.client.get_service("KeywordPlanIdeaService")
+        request = self._build_request(keyword_list)
         keyword_ideas = keyword_plan_idea_service.generate_keyword_ideas(request=request)
         keywords_info = {}
         i = 0
@@ -83,13 +70,9 @@ class GoogleAds:
         for idea in keyword_ideas:
             idea_join = idea.text.replace(' ','')
             if idea_join in keyword_list_noblank:
-
                 index = keyword_list_noblank.index(idea_join)
-                competition_level = idea.keyword_idea_metrics.competition.name
-                competition_value = idea.keyword_idea_metrics.competition.value
-                low_price = idea.keyword_idea_metrics.low_top_of_page_bid_micros / 1000000
-                high_price = idea.keyword_idea_metrics.high_top_of_page_bid_micros / 1000000
-                avg_monthly_traffic = idea.keyword_idea_metrics.avg_monthly_searches
+                competition_level, competition_value, low_price, high_price, \
+                searchs_month, avg_monthly_traffic = self._parse_keyword_idea_metrics(idea)
                 year_list, month_list, monthly_traffic_list = self._parse_monthly_search_volumes(idea)
                 for year, month, monthly_traffic in zip(year_list, month_list, monthly_traffic_list):
                     date=f"{year}-{month}-01"
@@ -103,45 +86,18 @@ class GoogleAds:
         return df
 
     def get_keyword_list_info(self, keyword_list):
-        client = self.client
-        location_ids = self.location_ids
-        language_id = self.language_id
-        customer_id = self.customer_id
-
-        keyword_plan_idea_service = client.get_service("KeywordPlanIdeaService")
-        keyword_competition_level_enum = (client.enums.KeywordPlanCompetitionLevelEnum)
-        keyword_plan_network = (client.enums.KeywordPlanNetworkEnum.GOOGLE_SEARCH_AND_PARTNERS)
-        location_rns = self._map_locations_ids_to_resource_names(client, location_ids)
-        language_rn = client.get_service("LanguageConstantService").language_constant_path(language_id)
-        # Only one of the fields "url_seed", "keyword_seed", or
-        # "keyword_and_url_seed" can be set on the request, depending on whether
-        # keywords, a page_url or both were passed to this function.
-        request = client.get_type("GenerateKeywordIdeasRequest")
-        request.customer_id = customer_id
-        request.language = language_rn
-        request.geo_target_constants = location_rns
-        request.include_adult_keywords = False
-        request.keyword_plan_network = keyword_plan_network
-        request.keyword_seed.keywords.extend(keyword_list)
-
+        keyword_plan_idea_service = self.client.get_service("KeywordPlanIdeaService")
+        request = self._build_request(keyword_list)
         keyword_ideas = keyword_plan_idea_service.generate_keyword_ideas(request=request)
-        keywords_info = {}
-        i = 0
+        keywords_info, i = {}, 0
         date_update = datetime_to_str(get_today())
         keyword_list_noblank = [keyword.replace(' ','') for keyword in keyword_list]
-        # month_desired = get_today().month-1
-        # year_desired = get_today().year
-        # print(keyword_list_noblank)
         for idea in keyword_ideas:
-            # print(idea.text.replace(' ',''))
             idea_join = idea.text.replace(' ','')
             if idea_join in keyword_list_noblank:
                 index = keyword_list_noblank.index(idea_join)
-                competition_level = idea.keyword_idea_metrics.competition.name
-                competition_value = idea.keyword_idea_metrics.competition.value
-                low_price = idea.keyword_idea_metrics.low_top_of_page_bid_micros / 1000000
-                high_price = idea.keyword_idea_metrics.high_top_of_page_bid_micros / 1000000
-                avg_monthly_traffic = idea.keyword_idea_metrics.avg_monthly_searches
+                competition_level, competition_value, low_price, high_price, \
+                searchs_month, avg_monthly_traffic = self._parse_keyword_idea_metrics(idea)
                 keywords_info[i] = {'keyword_ask': keyword_list[index], 'keyword_join': idea_join,
                                     'keyword_google': idea.text,
                                     'competition_level': competition_level, 'competition_value': competition_value,
@@ -153,40 +109,16 @@ class GoogleAds:
 
     ## including its related queries
     def get_keyword_info(self, keyword):
-        client = self.client
-        location_ids = self.location_ids
-        language_id = self.language_id
-        customer_id = self.customer_id
         if type(keyword) == str:
             keyword = [keyword]
-        keyword_plan_idea_service = client.get_service("KeywordPlanIdeaService")
-        keyword_competition_level_enum = (client.enums.KeywordPlanCompetitionLevelEnum)
-        keyword_plan_network = (client.enums.KeywordPlanNetworkEnum.GOOGLE_SEARCH_AND_PARTNERS)
-        location_rns = self._map_locations_ids_to_resource_names(client, location_ids)
-        language_rn = client.get_service("LanguageConstantService").language_constant_path(language_id)
-
-        # Only one of the fields "url_seed", "keyword_seed", or
-        # "keyword_and_url_seed" can be set on the request, depending on whether
-        # keywords, a page_url or both were passed to this function.
-        request = client.get_type("GenerateKeywordIdeasRequest")
-        request.customer_id = customer_id
-        request.language = language_rn
-        request.geo_target_constants = location_rns
-        request.include_adult_keywords = False
-        request.keyword_plan_network = keyword_plan_network
-        request.keyword_seed.keywords.extend(keyword)
-
+        keyword_plan_idea_service = self.client.get_service("KeywordPlanIdeaService")
+        request = self._build_request(keyword)
         keyword_ideas = keyword_plan_idea_service.generate_keyword_ideas(request=request)
-        keywords_info = {}
-        # keyword_main = keyword_ideas[0].text
-        i = 0
+        keywords_info, i = {}, 0
         date_update = datetime_to_str(get_today())
         for idea in keyword_ideas:
-            competition_value = idea.keyword_idea_metrics.competition.name
-            low_price = idea.keyword_idea_metrics.low_top_of_page_bid_micros / 1000000
-            high_price = idea.keyword_idea_metrics.high_top_of_page_bid_micros / 1000000
-            searchs_month = idea.keyword_idea_metrics.monthly_search_volumes ## list
-            avg_monthly_traffic = idea.keyword_idea_metrics.avg_monthly_searches
+            competition_level, competition_value, low_price, high_price, \
+            searchs_month, avg_monthly_traffic = self._parse_keyword_idea_metrics(idea)
             for search in searchs_month:
                 year, month, traffic = search._pb.year, search._pb.month-1, search._pb.monthly_searches
                 date = f"{year}-{month:02}-01"
@@ -196,6 +128,34 @@ class GoogleAds:
                 i += 1
         df = pd.DataFrame.from_dict(keywords_info, "index")
         return df
+
+    def _build_request(self, keyword: list):
+        keyword_competition_level_enum = (self.client.enums.KeywordPlanCompetitionLevelEnum)
+        keyword_plan_network = (self.client.enums.KeywordPlanNetworkEnum.GOOGLE_SEARCH_AND_PARTNERS)
+        location_rns = self._map_locations_ids_to_resource_names(self.client, self.location_ids)
+        language_rn = self.client.get_service("LanguageConstantService").language_constant_path(self.language_id)
+        # Only one of the fields "url_seed", "keyword_seed", or
+        # "keyword_and_url_seed" can be set on the request, depending on whether
+        # keywords, a page_url or both were passed to this function.
+        request = self.client.get_type("GenerateKeywordIdeasRequest")
+        request.customer_id = self.customer_id
+        request.keyword_plan_network = keyword_plan_network
+        request.geo_target_constants = location_rns
+        request.language = language_rn
+        request.include_adult_keywords = False
+        request.keyword_seed.keywords.extend(keyword)
+        return request
+
+    @staticmethod
+    def _parse_keyword_idea_metrics(idea):
+        competition_level = idea.keyword_idea_metrics.competition.name
+        competition_value = idea.keyword_idea_metrics.competition.name
+        low_price = idea.keyword_idea_metrics.low_top_of_page_bid_micros / 1000000
+        high_price = idea.keyword_idea_metrics.high_top_of_page_bid_micros / 1000000
+        searchs_month = idea.keyword_idea_metrics.monthly_search_volumes  ## list
+        avg_monthly_traffic = idea.keyword_idea_metrics.avg_monthly_searches
+        return competition_level, competition_value, low_price, high_price, searchs_month, avg_monthly_traffic
+
 
     def _map_locations_ids_to_resource_names(self, client, location_ids):
         """Converts a list of location IDs to resource names.
@@ -208,8 +168,8 @@ class GoogleAds:
         build_resource_name = client.get_service("GeoTargetConstantService").geo_target_constant_path
         return [build_resource_name(location_id) for location_id in location_ids]
 
-
-    def _parse_monthly_search_volumes(self, idea):
+    @staticmethod
+    def _parse_monthly_search_volumes(idea):
         year_list, month_list, monthly_searches_list = [], [], []
         monthly_search_volumes = idea.keyword_idea_metrics.monthly_search_volumes
         for search in monthly_search_volumes:
@@ -223,7 +183,9 @@ if __name__ == "__main__":
 
     gad = GoogleAds()
     # df = gad.get_keyword_info('湖人')
-    df2 = gad.get_keyword_list_monthly_info(['虎豹潭'])
+    # df2 = gad.get_keyword_list_monthly_info(['虎豹潭'])
+
+    df3 = gad._generate_12month_keyword_metrics(['apple', 'intel', 'amd'])
 
 
     # idea = gad.idea

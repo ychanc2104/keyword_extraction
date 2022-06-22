@@ -10,6 +10,7 @@ from oauth2client import tools
 class GoogleOAuth2:
     def __init__(self, SCOPES=['https://www.googleapis.com/auth/webmasters.readonly'], CLIENT_SECRETS_PATH='client_secrets.json',
                  OAUTH2_CREDENTIALS_PATH='authorizedcreds.dat', api_name='searchconsole', version='v1'):
+        super().__init__()
         self.SCOPES = SCOPES
         self.CLIENT_SECRETS_PATH = os.path.join(os.path.dirname(__file__), CLIENT_SECRETS_PATH)
         self.OAUTH2_CREDENTIALS_PATH = os.path.join(os.path.dirname(__file__), OAUTH2_CREDENTIALS_PATH)
