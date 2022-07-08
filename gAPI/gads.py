@@ -21,7 +21,7 @@ class GoogleAds:
         self.language_id = language_id  ## zh_TW
         self.customer_id = customer_id
         self.path_ads_config = f"{ROOT_DIR}/gAPI/{config_name}"
-        self.client = GoogleAdsClient.load_from_storage(version="v8", path=self.path_ads_config)
+        self.client = GoogleAdsClient.load_from_storage(version="v11", path=self.path_ads_config)
         self.month_mapping = {'JANUARY':'01', 'FEBRUARY':'02', 'MARCH':'03', 'APRIL':'04', 'MAY':'05', 'JUNE':'06',
                               'JULY':'07', 'AUGUST':'08', 'SEPTEMBER':'09', 'OCTOBER':'10', 'NOVEMBER':'11', 'DECEMBER':'12'}
         self.keyword_competition_levels = ['HIGH', 'MEDIUM', 'LOW', 'UNKNOWN', 'UNSPECIFIED']
@@ -133,7 +133,7 @@ class GoogleAds:
         keyword_competition_level_enum = (self.client.enums.KeywordPlanCompetitionLevelEnum)
         keyword_plan_network = (self.client.enums.KeywordPlanNetworkEnum.GOOGLE_SEARCH_AND_PARTNERS)
         location_rns = self._map_locations_ids_to_resource_names(self.client, self.location_ids)
-        language_rn = self.client.get_service("LanguageConstantService").language_constant_path(self.language_id)
+        language_rn = self.client.get_service("GoogleAdsService").language_constant_path(self.language_id)
         # Only one of the fields "url_seed", "keyword_seed", or
         # "keyword_and_url_seed" can be set on the request, depending on whether
         # keywords, a page_url or both were passed to this function.
