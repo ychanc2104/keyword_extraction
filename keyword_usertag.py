@@ -5,9 +5,7 @@ from basic import get_date_shift, get_yesterday, to_datetime, get_today, check_i
 from jieba_based import Composer_jieba
 from keyword_usertag_report import keyword_usertag_report, delete_expired_rows
 import jieba.analyse
-import numpy as np
-import time
-
+import paramiko
 
 
 def clean_keyword_list(keyword_list, stopwords, stopwords_usertag):
@@ -198,3 +196,10 @@ if __name__ == '__main__':
                                             is_save=True,
                                             delete_expired_report=True)
 
+
+    # connect to server
+    config = DBhelper._read_config()["SSH"]["missoner"]
+    con = paramiko.SSHClient()
+    con.load_system_host_keys()
+    con.connect(config["HOST"], username=config["USER"], password=config["PASSWORD"])
+    stdin, stdout, stderr = con.exec_command("screen -dmS wrapping_token bash -c 'python3 /var/www/html/cron_job/process_ta_token_json_csv.py'")
