@@ -27,7 +27,7 @@ def fetch_ecom_history(web_id,today,yesterday):
 
 def fetch_title_description(web_id):
     query=f"""SELECT product_id,title,description,meta_title FROM item_list WHERE web_id='{web_id}' """
-    data = DBhelper('rhea_web_push').ExecuteSelect(query)
+    data = DBhelper('rhea_web_push', is_ssh=True).ExecuteSelect(query)
     return pd.DataFrame(data,columns=['product_id','title','description','meta_title'])
 
 def count_unique(data_dict):
@@ -38,7 +38,7 @@ def count_unique(data_dict):
 def fetch_usertag_ecom_webid_and_date():
     query=f"""SELECT web_id,usertag_keyword_expired_day FROM ecom_web_id_table"""
    # print(query)
-    data = DBhelper('missioner').ExecuteSelect(query)
+    data = DBhelper('missioner', is_ssh=True).ExecuteSelect(query)
     web_id_list = [i[0] for i in data]
     expired_date_list = [i[1] for i in data]
     return web_id_list,expired_date_list
@@ -47,7 +47,7 @@ def fetch_token(web_id):
     query = f"""
      SELECT registation_id,uuid,os_platform,is_fcm FROM web_gcm_reg WHERE web_id='{web_id}'
         """
-    data = DBhelper('token').ExecuteSelect(query)
+    data = DBhelper('cloud_subscribe', is_ssh=True).ExecuteSelect(query)
     data = pd.DataFrame(data, columns=['token','uuid','os_platform','is_fcm'])
     return data
 
@@ -117,15 +117,15 @@ def update_usertag_report(web_id):
         ['term_freq', 'token_count', 'uuid_count']].astype('int')
     # print(df_freq_token)
     DBhelper.ExecuteUpdatebyChunk(df_freq_token, db='missioner', table='usertag_report', chunk_size=100000,
-                                     is_ssh=False)
+                                     is_ssh=True)
 
 
 
 
 if __name__ == '__main__':
-    today = datetime.date.today()
+    today = datetime.datetime.utcnow() + datetime.timedelta(hours=8)
     #today='2022-09-05'
-    yesterday = datetime.date.today() - datetime.timedelta(1)
+    yesterday = datetime.datetime.utcnow() + datetime.timedelta(hours=8-24)
     jieba_base = Composer_jieba()
     all_hashtag = jieba_base.set_config()
     stopwords = jieba_base.get_stopword_list()
@@ -168,6 +168,6 @@ if __name__ == '__main__':
                 i += 1
         df_usertag = pd.DataFrame.from_dict(data_usertag, "index")
        # print(df_usertag)
-        DBhelper.ExecuteUpdatebyChunk(df_usertag, db='missioner', table='usertag',chunk_size=100000, is_ssh=False)
+        DBhelper.ExecuteUpdatebyChunk(df_usertag, db='missioner', table='usertag',chunk_size=100000, is_ssh=True)
 
         update_usertag_report(web_id)
