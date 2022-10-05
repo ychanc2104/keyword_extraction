@@ -53,7 +53,7 @@ def fetch_token(web_id):
 
 def fetch_usertag(web_id, table='usertag'):
     date_now = datetime_to_str(get_today())
-    query = f"SELECT uuid, token, usertag FROM {table} where expired_date>='{date_now}' and web_id='{web_id}'"
+    query = f"SELECT uuid, token, usertag FROM {table} where expired_date>=CURDATE() and web_id='{web_id}'"
     # query = f"SELECT uuid, token, usertag FROM usertag where web_id='{web_id}'"
     print(query)
     data = DBhelper('missioner', is_ssh=True).ExecuteSelect(query)
