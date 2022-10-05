@@ -7,8 +7,8 @@ import numpy as np
 
 @timing
 def fetch_usertag(web_id, table='usertag'):
-    date_now = datetime_to_str(get_today())
-    query = f"SELECT uuid, token, usertag FROM {table} where expired_date>='{date_now}' and web_id='{web_id}'"
+    # date_now = datetime_to_str(get_today())
+    query = f"SELECT uuid, token, usertag FROM {table} where expired_date>=CURDATE() and web_id='{web_id}'"
     # query = f"SELECT uuid, token, usertag FROM usertag where web_id='{web_id}'"
     print(query)
     data = DBhelper('missioner', is_ssh=True).ExecuteSelect(query)
@@ -38,8 +38,8 @@ def fetch_BW_list_keywords(web_id):
     return black_list, white_list
 
 def delete_expired_rows(web_id, table='usertag', is_UTC0=False, jump2gcp=True):
-    date_now = datetime_to_str(get_today(is_UTC0=is_UTC0))
-    query = f"DELETE FROM {table} where expired_date<'{date_now}' and web_id='{web_id}'"
+    # date_now = datetime_to_str(get_today(is_UTC0=is_UTC0))
+    query = f"DELETE FROM {table} where expired_date<CURDATE() and web_id='{web_id}'"
     print(query)
     DBhelper('missioner', is_ssh=jump2gcp).ExecuteDelete(query)
 
