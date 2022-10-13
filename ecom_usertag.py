@@ -136,7 +136,7 @@ if __name__ == '__main__':
     for web_id,expired_date_int in zip(web_id_list,expired_date_list):
         #web_id='i3fresh'
         print(f'{web_id}\n')
-        expired_date = datetime.date.today() + datetime.timedelta(expired_date_int)
+        expired_date = today + datetime.timedelta(expired_date_int)
         df_user_record = fetch_ecom_history(web_id, today, yesterday)
         if df_user_record.shape[0] == 0:
             print('no available data in cdp.cdp_user_event_record')
